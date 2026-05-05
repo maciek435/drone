@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drone HUD Fullscreen</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #000; overflow: hidden; font-family: 'Courier New', monospace; 
+        }
+
+        /* Kamera na cały ekran */
+        .video-background {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: contain; /* Zachowuje proporcje 240x160 na dużym ekranie */
+            z-index: 1;
+        }
+
+        /* Przycisk Menu */
+        #menuBtn {
+            position: absolute; top: 20px; right: 20px;
+            padding: 10px 20px; z-index: 10;
+            background: rgba(0, 255, 0, 0.2); color: #0f0;
+            border: 1px solid #0f0; cursor: pointer;
+            text-transform: uppercase; font-weight: bold;
+        }
+        #menuBtn:hover { background: rgba(0, 255, 0, 0.4); }
+
+        /* Panel Telemetrii (Ukryty domyślnie) */
+        #telemetryOverlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none; /* Ukryte */
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 5;
+        }
+
+        .charts-container {
+            display: flex; gap: 20px; padding: 20px;
+            background: rgba(30, 30, 30, 0.9);
+            border: 1px solid #444; border-radius: 10px;
+        }
+
+        canvas { width: 350px !important; height: 200px !important; }
+        
+        .status-bar {
+            margin-top: 15px; color: #fff; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Tło wideo -->
+    <img src="{{ url_for('video_feed') }}" class="video-background">
+
+    <!-- Przycisk sterujący -->
+    <button id="menuBtn" onclick="toggleTelemetry()">Telemetry [T]</button>
+
+    <!-- Warstwa Wykresów -->
+    <div id="telemetryOverlay">
+        <h2 style="color: #0f0;">LIVE PID TELEMETRY</h2>
+        <div class="charts-container">
+            <div><canvas id="chartX"></canvas></div>
+            <div><canvas id="chartY"></canvas></div>
+        </div>
+        <div class="status-bar">
+            PID_X: <span id="valX" style="color: #ff00ff;">0</span> | 
+            PID_Y: <span id="valY" style="color: #00ffff;">0</span>
+        </div>
+        <p style="color: #666; font-size: 10px;">Kliknij przycisk ponownie, aby zamknąć</p>
+    </div>
+
+    <script>
+        let showTelemetry = false;
+
+        function toggleTelemetry() {
+            showTelemetry = !showTelemetry;
+            const overlay = document.getElementById('telemetryOverlay');
+            overlay.style.display = showTelemetry ? 'flex' : 'none';
+            document.getElementById('menuBtn').innerText = showTelemetry ? 'Close [T]' : 'Telemetry [T]';
+        }
+
+        // Obsługa klawisza "T" dla wygody
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 't') toggleTelemetry();
+        });
+
+        // Konfiguracja wykresów (Chart.js)
+        const config = (label, color) => ({
+            type: 'line',
+            data: { 
+                labels: Array(50).fill(''), 
+                datasets: [{ label: label, data: Array(50).fill(0), borderColor: color, borderWidth: 2, tension: 0.3, pointRadius: 0 }] 
+            },
+            options: { 
+                animation: false, 
+                responsive: false,
+                scales: { 
+                    y: { min: -100, max: 100, grid: { color: '#333' }, ticks: { color: '#888' } },
+                    x: { display: false }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            }
+        });
+
+        const chartX = new Chart(document.getElementById('chartX'), config('Error X (Yaw)', '#ff00ff'));
+        const chartY = new Chart(document.getElementById('chartY'), config('Error Y (Pitch)', '#00ffff'));
+
+        // Pobieranie danych
+        setInterval(() => {
+            if (!showTelemetry) return;
+
+            fetch('/telemetry').then(res => res.json()).then(data => {
+                const update = (chart, val) => {
+                    chart.data.datasets[0].data.push(val);
+                    chart.data.datasets[0].data.shift();
+                    chart.update();
+                };
+                update(chartX, data.err_x);
+                update(chartY, data.err_y);
+                document.getElementById('valX').innerText = data.ctrl_x;
+                document.getElementById('valY').innerText = data.ctrl_y;
+            });
+        }, 100);
+    </script>
+</body>
+</html>

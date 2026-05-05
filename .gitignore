@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# --- Flask & Logs ---
+instance/
+.webassets-cache
+*.log
+
+# --- MediaPipe & OpenCV ---
+*.jpg
+*.jpeg
+*.png
+*.mp4
+
+# --- Systemowe ---
+.DS_Store
+Thumbs.db
+
+# --- Konfiguracja edytora ---
+.vscode/
+.idea/

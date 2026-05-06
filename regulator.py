@@ -1,35 +1,28 @@
 import time
 
-class EMAFilter:
-    def __init__(self, alpha=0.3):
-        self.alpha = alpha
-        self.smoothed_value = None
+class Regulator:
+    def __init__(self, kp=0.12):
+        self.kp = kp
+        self.target_angle = 0
 
-    def apply(self, current_value):
-        if self.smoothed_value is None:
-            self.smoothed_value = current_value
-        else:
-            self.smoothed_value = (self.alpha * current_value) + (1 - self.alpha) * self.smoothed_value
-        return self.smoothed_value
+    def update(self, error):
+        self.target_angle = error * self.kp
+        return max(min(self.target_angle, 90), -90)
 
-class PID:
-    def __init__(self, kp, ki, kd, setpoint):
-        self.kp, self.ki, self.kd = kp, ki, kd
-        self.setpoint = setpoint
-        self.prev_error = 0
-        self.integral = 0
-        self.last_time = time.time()
-    
-    def update(self, current_value):
-        now = time.time()
-        dt = now - self.last_time
-        if dt <= 0 : dt = 0.001
+class KalmanLite:
+    def __init__(self, process_noise=0.05, measurement_noise=2.0):
+        self.q = process_noise
+        self.r = measurement_noise
+        self.x = None
+        self.p = 1.0
 
-        error = self.setpoint - current_value
-        self.integral += error * dt
-        derivative = (error - self.prev_error) / dt
-
-        output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
-        self.prev_error = error
-        self.last_time = now
-        return output
+    def apply(self, measurement):
+        if self.x is None:
+            self.x = measurement
+            return measurement
+        
+        self.p = self.p + self.q
+        k = self.p / (self.p + self.r)
+        self.x = self.x + k * (measurement - self.x)
+        self.p = (1 - k) * self.p
+        return self.x

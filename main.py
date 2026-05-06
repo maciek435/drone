@@ -1,30 +1,36 @@
 import cv2
 import time
 import json
+import threading
 from flask import Flask, Response, render_template
 from camera import VideoStream
-from regulator import EMAFilter, PID
+from regulator import KalmanLite, Regulator
 from vision import PoseDetector
+from servo_control import ServoController
 
 app = Flask(__name__)
 vs = VideoStream().start()
 detector = PoseDetector()
+servo_x = ServoController(pin=17)
 
-center_x, center_y = 120, 80
-initialized = False
+filter_x = KalmanLite(process_noise=0.05, measurement_noise=5.0)
+filter_y = KalmanLite(process_noise=0.05, measurement_noise=5.0)
+reg_x = Regulator(kp=2)
+reg_y = Regulator(kp=2)
 
+target_angle_x = 0
 telemetry_data = {"err_x": 0, "err_y": 0, "ctrl_x": 0, "ctrl_y": 0}
+initialized = False
+running = True
 
-filter_x = EMAFilter(alpha=0.2)
-filter_y = EMAFilter(alpha=0.2)
-
-pid_x = None
-pid_y = None
-
-
+def servo_worker():
+    global target_angle_x, running
+    while running:
+        servo_x.move_smoothly(target_angle_x, speed=1)
+        time.sleep(0.02)
 
 def gen_frames():
-    global telemetry_data, pid_x, pid_y, initialized
+    global telemetry_data, initialized, target_angle_x
     p_time = 0
 
     while True:
@@ -36,46 +42,52 @@ def gen_frames():
         c_x, c_y = w // 2, h // 2
 
         if not initialized:
-            pid_x = PID(kp=0.6, ki=0.01, kd=0.1, setpoint=c_x)
-            pid_y = PID(kp=0.6, ki=0.01, kd=0.1, setpoint=c_y)
             initialized = True
 
+        # Celownik na środku
         cv2.line(img, (c_x - 10, c_y), (c_x + 10, c_y), (255, 255, 255), 1)
         cv2.line(img, (c_x, c_y - 10), (c_x, c_y + 10), (255, 255, 255), 1)
 
         # Detekcja
         cx, cy, pts = detector.find_torso(img)
 
-        if cx is not None and initialized:
-            # Filtrowanie i PID
+        if cx is not None:
+            # Filtrowanie (Kalman)
             s_cx = filter_x.apply(cx)
             s_cy = filter_y.apply(cy)
             
-            ctrl_x = pid_x.update(s_cx)
-            ctrl_y = pid_y.update(s_cy)
+            # Obliczenie kąta docelowego
+            target_angle_x = reg_x.update(c_x - s_cx)
+            target_angle_y = reg_y.update(c_y - s_cy)
 
+            # Pełna telemetria
             telemetry_data = {
                 "err_x": int(c_x - s_cx),
                 "err_y": int(c_y - s_cy),
-                "ctrl_x": round(ctrl_x, 1),
-                "ctrl_y": round(ctrl_y, 1)
+                "ctrl_x": round(target_angle_x, 1),
+                "ctrl_y": round(target_angle_y, 1)
             }
 
-            # Rysowanie (wizualizacja)
-            cv2.line(img, pts[11], pts[12], (0, 255, 0), 2)
-            cv2.line(img, pts[11], pts[23], (0, 255, 0), 2)
-            cv2.line(img, pts[12], pts[24], (0, 255, 0), 2)
-            cv2.line(img, pts[23], pts[24], (0, 255, 0), 2)
+            # Wizualizacja szkieletu (torsu)
+            if pts:
+                cv2.line(img, pts[11], pts[12], (0, 255, 0), 2)
+                cv2.line(img, pts[11], pts[23], (0, 255, 0), 2)
+                cv2.line(img, pts[12], pts[24], (0, 255, 0), 2)
+                cv2.line(img, pts[23], pts[24], (0, 255, 0), 2)
             
+            # Kropka śledzonego punktu
             cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
 
         # FPS
-        fps = 1 / (time.time() - p_time)
+        fps = 1 / (time.time() - p_time + 0.0001)
         p_time = time.time()
         cv2.putText(img, f"FPS: {int(fps)}", (10, 25), 1, 1, (0, 255, 0), 2)
 
         ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 65])
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+# Start wątku serwa
+threading.Thread(target=servo_worker, daemon=True).start()
 
 @app.route('/')
 def home(): return render_template("index.html")
@@ -87,4 +99,4 @@ def video_feed(): return Response(gen_frames(), mimetype='multipart/x-mixed-repl
 def telemetry(): return Response(json.dumps(telemetry_data), mimetype='application/json')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False)

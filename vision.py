@@ -18,7 +18,6 @@ class PoseDetector:
         
         if results.pose_landmarks:
             lm = results.pose_landmarks.landmark
-            # Wyciągamy punkty (11, 12 - ramiona, 23, 24 - biodra)
             try:
                 pts = {
                     11: (int(lm[11].x * w), int(lm[11].y * h)),

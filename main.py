@@ -38,7 +38,7 @@ def servo_worker():
         time.sleep(0.02)
 
 def gen_frames():
-    global telemetry_data, initialized, target_angle_x
+    global telemetry_data, initialized, target_angle_x, last_filtered_height
     p_time = 0
     h_tors = 0
 
@@ -71,13 +71,16 @@ def gen_frames():
             target_angle_x = reg_x.update(c_x - s_cx)
             target_angle_y = reg_y.update(c_y - s_cy)
             ctrl_z = reg_z.update(s_hz)
+            err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
 
             # Pełna telemetria
             telemetry_data = {
                 "err_x": int(c_x - s_cx),
                 "err_y": int(c_y - s_cy),
+                "err_z": int(err_z),
                 "ctrl_x": round(target_angle_x, 1),
-                "ctrl_y": round(target_angle_y, 1)
+                "ctrl_y": round(target_angle_y, 1),
+                "ctrl_z": round(ctrl_z, 1)
             }
 
             # Wizualizacja szkieletu (torsu)

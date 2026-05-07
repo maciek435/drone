@@ -1,4 +1,5 @@
 import cv2
+from djitellopy import Tello
 import threading
 
 class VideoStream:

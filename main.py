@@ -3,7 +3,8 @@ import time
 import json
 import threading
 from flask import Flask, Response, render_template
-from camera import VideoStream
+# from camera import VideoStream
+from tello_camera import VideoStream
 from regulator import KalmanLite, Regulator, DistanceRegulator
 from vision import PoseDetector
 from servo_control import ServoController
@@ -98,7 +99,7 @@ def gen_frames():
         p_time = time.time()
         cv2.putText(img, f"FPS: {int(fps)}", (10, 25), 1, 1, (0, 255, 0), 2)
 
-        ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 65])
+        ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 35])
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 # Start wątku serwa

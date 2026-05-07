@@ -81,7 +81,8 @@ def gen_frames():
                 "err_z": int(err_z),
                 "ctrl_x": round(target_angle_x, 1),
                 "ctrl_y": round(target_angle_y, 1),
-                "ctrl_z": round(ctrl_z, 1)
+                "ctrl_z": round(ctrl_z, 1),
+                "batt": vs.tello.get_battery()
             }
 
             # Wizualizacja szkieletu (torsu)
@@ -113,6 +114,22 @@ def video_feed(): return Response(gen_frames(), mimetype='multipart/x-mixed-repl
 
 @app.route('/telemetry')
 def telemetry(): return Response(json.dumps(telemetry_data), mimetype='application/json')
+
+@app.route('/takeoff')
+def takeoff():
+    try:
+        vs.tello.takeoff()
+        return json.dumps({"status": "success", "message": "Takeoff initiated"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+@app.route('/land')
+def land():
+    try:
+        vs.tello.land()
+        return json.dumps({"status": "success", "message": "Landing initiated"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
 
 @app.route('/toggle_follow')
 def toggle_follow():

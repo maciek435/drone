@@ -55,6 +55,19 @@
             margin-top: 15px; color: #fff; font-size: 14px;
             background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;
         }
+
+        .flight-controls {
+            position: absolute; top: 20px; left: 20px;
+            display: flex; flex-direction: column; gap: 10px; z-index: 10;
+        }
+
+        .btn-flight {
+            padding: 10px 20px; font-weight: bold; cursor: pointer;
+            border: 1px solid #0f0; background: rgba(0, 255, 0, 0.1); color: #0f0;
+            text-transform: uppercase;
+        }
+
+        .btn-land { border-color: #ff4444; color: #ff4444; background: rgba(255, 68, 68, 0.1); }
     </style>
 </head>
 <body>
@@ -63,6 +76,11 @@
 
     <button id="menuBtn" onclick="toggleTelemetry()">Telemetry [T]</button>
     <button id="followBtn" onclick="toggleFollow()">START FOLLOW</button>
+
+    <div class="flight-controls">
+        <button class="btn-flight" onclick="flightAction('takeoff')">Takeoff</button>
+        <button class="btn-flight btn-land" onclick="flightAction('land')">Land</button>
+    </div>
 
     <div id="telemetryOverlay">
         <h2 style="color: #0f0; text-shadow: 0 0 10px #0f0;">TELEMETRY</h2>
@@ -84,6 +102,15 @@
             const overlay = document.getElementById('telemetryOverlay');
             overlay.style.display = showTelemetry ? 'flex' : 'none';
             document.getElementById('menuBtn').innerText = showTelemetry ? 'Close [T]' : 'Telemetry [T]';
+        }
+
+        function flightAction(cmd) {
+            fetch('/' + cmd)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(cmd + " result:", data.status);
+                    if(data.status === "error") alert("Flight Error: " + data.message);
+                });
         }
 
         function toggleFollow() {

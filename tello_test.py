@@ -4,7 +4,7 @@ import time
 
 width = 320
 height = 240
-startCounter = 1
+startCounter = 0
 
 me = Tello()
 me.connect()
@@ -17,12 +17,12 @@ me.streamoff()
 me.streamon()
 
 while True:
-    frame_read = me.get_frame_read()
-    myFrame = frame_read.frame
-    img = cv2.resize(myFrame, (width, height))
-    cv2.imshow("Tello Camera", img)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    # frame_read = me.get_frame_read()
+    # myFrame = frame_read.frame
+    # img = cv2.resize(myFrame, (width, height))
+    # cv2.imshow("Tello Camera", img)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #     break
 
     if startCounter == 0:
         me.takeoff()

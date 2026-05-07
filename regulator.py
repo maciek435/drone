@@ -26,3 +26,17 @@ class KalmanLite:
         self.x = self.x + k * (measurement - self.x)
         self.p = (1 - k) * self.p
         return self.x
+
+class DistanceRegulator:
+    def __init__(self, kp=0.2):
+        self.kp = kp
+        self.target_height = None
+
+    def set_reference(self, current_height):
+        self.target_height = current_height
+
+    def update(self, current_height):
+        if self.target_height is None:
+            return 0
+        error_z = self.target_height - current_height
+        return max(min(error_z * self.kp, 100), -100)

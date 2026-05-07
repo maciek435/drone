@@ -27,7 +27,12 @@ class PoseDetector:
                 }
                 cx = int((pts[11][0] + pts[12][0]) / 2)
                 cy = int((pts[11][1] + pts[23][1]) / 2)
-                return cx, cy, pts
+
+                h_left = pts[23][1] - pts[11][1]
+                h_right = pts[24][1] - pts[12][1]
+                h_tors = (h_left + h_right) / 2
+
+                return cx, cy, h_tors, pts
             except:
-                return None, None, None
-        return None, None, None
+                return None, None, None, None
+        return None, None, None, None

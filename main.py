@@ -17,11 +17,12 @@ servo_x = ServoController(pin=17)
 filter_x = KalmanLite(process_noise=0.05, measurement_noise=5.0)
 filter_y = KalmanLite(process_noise=0.05, measurement_noise=5.0)
 filter_z = KalmanLite(process_noise=0.05, measurement_noise=5.0)
-reg_x = Regulator(kp=2)
-reg_y = Regulator(kp=2)
+reg_x = Regulator(kp=0.6, kd=0.3)
+reg_y = Regulator(kp=0.5, kd=0.08)
 reg_z = DistanceRegulator(kp=2)
 
 target_angle_x = 0
+target_angle_y = 0
 telemetry_data = {"err_x": 0, "err_y": 0, "ctrl_x": 0, "ctrl_y": 0}
 initialized = False
 running = True
@@ -29,19 +30,37 @@ running = True
 follow_active = False
 last_filtered_height = 0
 
-def servo_worker():
-    global target_angle_x, running, follow_active
+def flight_worker():
+    global target_angle_x, target_angle_y, running, follow_active
+    
+    MAX_SPEED = 70
+    DEADZONE = 5
+
     while running:
-        if follow_active:
-            servo_x.move_smoothly(target_angle_x, speed=1)
+        if follow_active and target_angle_x != 0:
+
+            yaw_speed = int(target_angle_x)
+            if abs(yaw_speed) < DEADZONE:
+                yaw_speed = 0
+
+            up_down_speed = int(target_angle_y)
+            if abs(up_down_speed) < DEADZONE:
+                up_down_speed = 0
+
+            # yaw_speed = max(min(yaw_speed, MAX_SPEED), -MAX_SPEED)
+            # up_down_speed = max(min(up_down_speed, MAX_SPEED), -MAX_SPEED)
+
+            vs.tello.send_rc_control(0, 0, up_down_speed, yaw_speed)
         else:
-            servo_x.move_smoothly(0, speed=0.05)
-        time.sleep(0.02)
+            if vs.tello.is_flying:
+                vs.tello.send_rc_control(0, 0, 0, 0)
+        
+        time.sleep(0.05)
 
 def gen_frames():
-    global telemetry_data, initialized, target_angle_x, last_filtered_height
+    global telemetry_data, initialized, target_angle_x, target_angle_y,  last_filtered_height
     p_time = 0
-    h_tors = 0
+    h_tors = 0 
 
     while True:
         frame = vs.read()
@@ -69,7 +88,7 @@ def gen_frames():
             last_filtered_height = s_hz
             
             # Obliczenie kąta docelowego
-            target_angle_x = reg_x.update(c_x - s_cx)
+            target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
             ctrl_z = reg_z.update(s_hz)
             err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
@@ -94,6 +113,9 @@ def gen_frames():
             
             # Kropka śledzonego punktu
             cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
+        else:
+            target_angle_x = 0
+            reg_x.prev_error = 0
 
         # FPS
         fps = 1 / (time.time() - p_time + 0.0001)
@@ -104,7 +126,7 @@ def gen_frames():
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 # Start wątku serwa
-threading.Thread(target=servo_worker, daemon=True).start()
+threading.Thread(target=flight_worker, daemon=True).start()
 
 @app.route('/')
 def home(): return render_template("index.html")
@@ -119,6 +141,9 @@ def telemetry(): return Response(json.dumps(telemetry_data), mimetype='applicati
 def takeoff():
     try:
         vs.tello.takeoff()
+        time.sleep(1)
+        # vs.tello.move_up(70)
+
         return json.dumps({"status": "success", "message": "Takeoff initiated"})
     except Exception as e:
         return json.dumps({"status": "error", "message": str(e)})

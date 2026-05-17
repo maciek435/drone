@@ -92,6 +92,7 @@
             CTRL_X: <span id="valX" style="color: #ff00ff;">0</span> | 
             CTRL_Y: <span id="valY" style="color: #00ffff;">0</span> |
             CTRL_Z: <span id="valZ" style="color: #ffff00;">0</span> </div>
+            BATT: <span id="valBatt" style="color: #00ff00;">--%</span>
     </div>
 
     <script>
@@ -182,6 +183,7 @@
                 document.getElementById('valX').innerText = data.ctrl_x;
                 document.getElementById('valY').innerText = data.ctrl_y;
                 document.getElementById('valZ').innerText = data.ctrl_z;
+                document.getElementById('valBatt').innerText = data.batt + '%';
             });
         }, 100);
     </script>

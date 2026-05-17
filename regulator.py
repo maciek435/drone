@@ -11,7 +11,7 @@ class Regulator:
         self.prev_error = error
 
         output = (error * self.kp) + (derivative * self.kd)
-        return max(min(output, 100), -100) #zmniejszyc w razie potrzeby
+        return max(min(output, 50), -50) #zmniejszyc w razie potrzeby
 
 class KalmanLite:
     def __init__(self, process_noise=0.05, measurement_noise=2.0):

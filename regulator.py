@@ -9,7 +9,6 @@ class Regulator:
     def update(self, error):
         derivative = error - self.prev_error
         self.prev_error = error
-
         output = (error * self.kp) + (derivative * self.kd)
         return max(min(output, 50), -50) #zmniejszyc w razie potrzeby
 
@@ -24,7 +23,6 @@ class KalmanLite:
         if self.x is None:
             self.x = measurement
             return measurement
-        
         self.p = self.p + self.q
         k = self.p / (self.p + self.r)
         self.x = self.x + k * (measurement - self.x)
@@ -32,15 +30,25 @@ class KalmanLite:
         return self.x
 
 class DistanceRegulator:
-    def __init__(self, kp=0.2):
+    def __init__(self, kp=0.2, max_jump=15):
         self.kp = kp
         self.target_height = None
+        self.last_height = None
+        self.max_jump = max_jump
 
     def set_reference(self, current_height):
         self.target_height = current_height
+        self.last_height = current_height
 
     def update(self, current_height):
         if self.target_height is None:
             return 0
+        if current_height <= 0:
+            return 0
+        if self.last_height is not None:
+            jump = abs(current_height - self.last_height)
+            if jump > self.max_jump:
+                return 0
+        self.last_height = current_height
         error_z = self.target_height - current_height
-        return max(min(error_z * self.kp, 100), -100)
+        return max(min(error_z * self.kp, 50), -50)

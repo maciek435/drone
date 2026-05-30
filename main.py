@@ -18,10 +18,11 @@ filter_y = KalmanLite(process_noise=0.05, measurement_noise=5.0)
 filter_z = KalmanLite(process_noise=0.05, measurement_noise=5.0)
 reg_x = Regulator(kp=0.5, kd=0.3)
 reg_y = Regulator(kp=0.5, kd=0.3)
-reg_z = DistanceRegulator(kp=2)
+reg_z = DistanceRegulator(kp=1.5)
 
 target_angle_x = 0
 target_angle_y = 0
+target_speed_z = 0
 telemetry_data = {"err_x": 0, "err_y": 0, "ctrl_x": 0, "ctrl_y": 0}
 running = True
 follow_active = False
@@ -46,7 +47,7 @@ def detection_worker():
             latest_detection["pts"] = pts
 
 def flight_worker():
-    global target_angle_x, target_angle_y, running, follow_active
+    global target_angle_x, target_angle_y, target_speed_z, running, follow_active
     MAX_SPEED = 70
     DEADZONE = 5
 
@@ -58,14 +59,18 @@ def flight_worker():
             up_down_speed = int(target_angle_y)
             if abs(up_down_speed) < DEADZONE:
                 up_down_speed = 0
-            vs.tello.send_rc_control(0, 0, up_down_speed, yaw_speed)
+            fwd_speed = int(target_speed_z)
+            # if abs(fwd_speed) < DEADZONE:
+            #     fwd_speed = 0
+
+            vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
         else:
             if vs.tello.is_flying:
                 vs.tello.send_rc_control(0, 0, 0, 0)
         time.sleep(0.05)
 
 def gen_frames():
-    global telemetry_data, target_angle_x, target_angle_y, last_filtered_height
+    global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z
     global cached_battery, last_battery_time
     p_time = 0
 
@@ -96,7 +101,7 @@ def gen_frames():
 
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
-            ctrl_z = reg_z.update(s_hz)
+            target_speed_z = reg_z.update(s_hz)
             err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
 
             now = time.time()
@@ -110,7 +115,7 @@ def gen_frames():
                 "err_z": int(err_z),
                 "ctrl_x": round(target_angle_x, 1),
                 "ctrl_y": round(target_angle_y, 1),
-                "ctrl_z": round(ctrl_z, 1),
+                "ctrl_z": round(target_speed_z, 1),
                 "batt": cached_battery
             }
 
@@ -123,6 +128,8 @@ def gen_frames():
             cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
         else:
             target_angle_x = 0
+            target_angle_y = 0
+            target_speed_z = 0
             reg_x.prev_error = 0
 
         fps = 1 / (time.time() - p_time + 0.0001)

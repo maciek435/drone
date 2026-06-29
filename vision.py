@@ -13,6 +13,18 @@ class PoseDetector:
         )
         self.last_h_tors = None
 
+        #target lock
+        self.locked_cx = None
+        self.locked_cy = None
+        self.lock_max_jump = 40
+        self.lost_frames = 0
+        self.lost_frames_limit = 10
+
+    def lock_reset(self):
+        self.locked_cx = None
+        self.locked_cy = None
+        self.lost_frames = 0
+
     def find_torso(self, frame):
         h, w, _ = frame.shape
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -41,9 +53,36 @@ class PoseDetector:
 
                 if h_tors <= 0:
                     return None, None, None, None
+
+                if self.locked_cx is None:
+                    self.locked_cx = cx
+                    self.locked_cy = cy
+                    self.lost_frames = 0
+                    self.last_h_tors = h_tors
+                    return cx, cy, h_tors, pts
                 
+                dist = ((cx - self.locked_cx) ** 2 + (cy - self.locked_cy) ** 2) ** 0.5
+                if dist > self.lock_max_jump:
+                    self._handle_lost()
+                    return None, None, None, None
+                
+
+                self.locked_cx = cx
+                self.locked_cy = cy
+                self.lost_frames = 0
                 self.last_h_tors = h_tors
                 return cx, cy, h_tors, pts
+
             except:
+                self._handle_lost()
                 return None, None, None, None
+        
+        self._handle_lost()
         return None, None, None, None
+
+    def _handle_lost(self):
+        """Zlicza klatki bez detekcji i resetuje lock po przekroczeniu limitu."""
+        self.lost_frames += 1
+        if self.lost_frames >= self.lost_frames_limit:
+            self.locked_cx = None
+            self.locked_cy = None

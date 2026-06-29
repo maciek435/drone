@@ -6,19 +6,19 @@ from flask import Flask, Response, render_template
 from tello_camera import VideoStream
 from regulator import KalmanLite, Regulator, DistanceRegulator
 from vision import PoseDetector
-from servo_control import ServoController
+
 
 app = Flask(__name__)
 vs = VideoStream().start()
 detector = PoseDetector()
-servo_x = ServoController(pin=17)
+
 
 filter_x = KalmanLite(process_noise=0.05, measurement_noise=5.0)
 filter_y = KalmanLite(process_noise=0.05, measurement_noise=5.0)
-filter_z = KalmanLite(process_noise=0.05, measurement_noise=5.0)
-reg_x = Regulator(kp=0.5, kd=0.3)
-reg_y = Regulator(kp=0.5, kd=0.3)
-reg_z = DistanceRegulator(kp=1.5)
+filter_z = KalmanLite(process_noise=0.1, measurement_noise=3.0) #0.05 5.0
+reg_x = Regulator(kp=0.5, kd=0.3, max_output=60) #50
+reg_y = Regulator(kp=0.5, kd=0.3, max_output=40) #50
+reg_z = DistanceRegulator(kp=1.5, max_jump=15, max_output=50)
 
 target_angle_x = 0
 target_angle_y = 0
@@ -130,7 +130,8 @@ def gen_frames():
             target_angle_x = 0
             target_angle_y = 0
             target_speed_z = 0
-            reg_x.prev_error = 0
+            reg_x.reset()
+            reg_y.reset()
 
         fps = 1 / (time.time() - p_time + 0.0001)
         p_time = time.time()
@@ -176,8 +177,13 @@ def toggle_follow():
     follow_active = not follow_active
     if follow_active:
         reg_z.set_reference(last_filtered_height)
+        detector.lock_reset()
         print(f"Śledzenie aktywne! Cel odległości: {last_filtered_height}px")
+    else:
+        detector.lock_reset() 
+    
     return json.dumps({"status": "ok", "active": follow_active})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False)

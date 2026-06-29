@@ -9,12 +9,11 @@ class PiVideoStream:
         self.frame = None
         self.stopped = False
 
-        from picamera2 import picamera2
-
-        self.cam = picamera2()
+        import picamera2
+        self.cam = picamera2.Picamera2()
 
         cfg = self.cam.create_video_configuration(
-            main={"format": "BGR888", "size": self.width, self.height}
+            main={"format": "BGR888", "size": (self.width, self.height)}
         )
 
         self.cam.configure(cfg)
@@ -25,7 +24,7 @@ class PiVideoStream:
         self.frame = self.cam.capture_array()
 
     def start(self):
-        threading.Tread(target=self._update, daemon=True).start()
+        threading.Thread(target=self._update, daemon=True).start()
         return self
 
     def _update(self):
@@ -33,7 +32,7 @@ class PiVideoStream:
             self.frame = self.cam.capture_array()
     
     def read(self):
-        return self.frame.copy() if self frame is not None else None
+        return self.frame.copy() if self.frame is not None else None
 
     def stop(self):
         self.stopped = True

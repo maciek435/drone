@@ -1,30 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Drone HUD Fullscreen</title>
-    <script src="{{ url_for('static', filename='chart.js')}}"></script>
+    <title>Drone HUD</title>
+    <script src="{{ url_for('static', filename='chart.js') }}"></script>
     <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            background: #000; overflow: hidden; font-family: 'Courier New', monospace; 
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: #000; overflow: hidden;
+            font-family: 'Courier New', monospace;
         }
 
         .video-background {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            object-fit: contain;
-            z-index: 1;
+            object-fit: contain; z-index: 1;
         }
 
-        #followBtn {
-            position: absolute; top: 100px; right: 20px;
-            padding: 15px 30px; z-index: 10; 
-            font-size: 18px; cursor: pointer; 
-            background-color: #4CAF50; color: white; 
-            border: none; border-radius: 5px;
-            font-weight: bold;
-        }
-
+        /* Przycisk telemetrii — prawy górny róg */
         #menuBtn {
             position: absolute; top: 20px; right: 20px;
             padding: 10px 20px; z-index: 10;
@@ -33,11 +25,12 @@
             text-transform: uppercase; font-weight: bold;
         }
 
+        /* Overlay z wykresami */
         #telemetryOverlay {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: none; 
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
             flex-direction: column; align-items: center; justify-content: center;
             z-index: 5;
         }
@@ -50,24 +43,23 @@
         }
 
         canvas { width: 320px !important; height: 180px !important; }
-        
+
         .status-bar {
             margin-top: 15px; color: #fff; font-size: 14px;
             background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;
         }
 
-        .flight-controls {
-            position: absolute; top: 20px; left: 20px;
-            display: flex; flex-direction: column; gap: 10px; z-index: 10;
+        /* Pasek statusu — zawsze widoczny na dole, nawet bez overlay */
+        #infoBar {
+            position: absolute; bottom: 20px; left: 20px;
+            z-index: 10; color: #fff; font-size: 13px;
+            background: rgba(0, 0, 0, 0.55); padding: 6px 14px;
+            border-radius: 4px; border: 1px solid #333;
         }
 
-        .btn-flight {
-            padding: 10px 20px; font-weight: bold; cursor: pointer;
-            border: 1px solid #0f0; background: rgba(0, 255, 0, 0.1); color: #0f0;
-            text-transform: uppercase;
-        }
-
-        .btn-land { border-color: #ff4444; color: #ff4444; background: rgba(255, 68, 68, 0.1); }
+        /* Kolor kropki statusu detekcji */
+        .dot-ok  { color: #0f0; }
+        .dot-lost { color: #f44; }
     </style>
 </head>
 <body>
@@ -75,24 +67,27 @@
     <img src="{{ url_for('video_feed') }}" class="video-background">
 
     <button id="menuBtn" onclick="toggleTelemetry()">Telemetry [T]</button>
-    <button id="followBtn" onclick="toggleFollow()">START FOLLOW</button>
 
-    <div class="flight-controls">
-        <button class="btn-flight" onclick="flightAction('takeoff')">Takeoff</button>
-        <button class="btn-flight btn-land" onclick="flightAction('land')">Land</button>
+    <!-- Pasek zawsze widoczny — ERR_X, ERR_Y, BATT, status detekcji -->
+    <div id="infoBar">
+        <span id="detDot" class="dot-lost">●</span>
+        ERR_X: <span id="infoX" style="color:#ff00ff">0</span> px |
+        ERR_Y: <span id="infoY" style="color:#00ffff">0</span> px |
+        BATT: <span id="infoBatt" style="color:#0f0">--</span>
     </div>
 
+    <!-- Overlay z wykresami -->
     <div id="telemetryOverlay">
-        <h2 style="color: #0f0; text-shadow: 0 0 10px #0f0;">TELEMETRY</h2>
+        <h2 style="color:#0f0; text-shadow: 0 0 10px #0f0;">TELEMETRY</h2>
         <div class="charts-container">
             <div><canvas id="chartX"></canvas></div>
             <div><canvas id="chartY"></canvas></div>
-            <div><canvas id="chartZ"></canvas></div> </div>
+        </div>
         <div class="status-bar">
-            CTRL_X: <span id="valX" style="color: #ff00ff;">0</span> | 
-            CTRL_Y: <span id="valY" style="color: #00ffff;">0</span> |
-            CTRL_Z: <span id="valZ" style="color: #ffff00;">0</span> </div>
-            BATT: <span id="valBatt" style="color: #00ff00;">--%</span>
+            ERR_X: <span id="valX" style="color:#ff00ff">0</span> px |
+            ERR_Y: <span id="valY" style="color:#00ffff">0</span> px |
+            BATT: <span id="valBatt" style="color:#0f0">--</span>
+        </div>
     </div>
 
     <script>
@@ -102,89 +97,86 @@
             showTelemetry = !showTelemetry;
             const overlay = document.getElementById('telemetryOverlay');
             overlay.style.display = showTelemetry ? 'flex' : 'none';
-            document.getElementById('menuBtn').innerText = showTelemetry ? 'Close [T]' : 'Telemetry [T]';
+            document.getElementById('menuBtn').innerText =
+                showTelemetry ? 'Close [T]' : 'Telemetry [T]';
         }
 
-        function flightAction(cmd) {
-            fetch('/' + cmd)
-                .then(response => response.json())
-                .then(data => {
-                    console.log(cmd + " result:", data.status);
-                    if(data.status === "error") alert("Flight Error: " + data.message);
-                });
-        }
-
-        function toggleFollow() {
-            fetch('/toggle_follow')
-                .then(response => response.json())
-                .then(data => {
-                    const btn = document.getElementById('followBtn');
-                    if (data.active) {
-                        btn.innerHTML = "STOP FOLLOW";
-                        btn.style.backgroundColor = "#f44336";
-                    } else {
-                        btn.innerHTML = "START FOLLOW";
-                        btn.style.backgroundColor = "#4CAF50";
-                    }
-                });
-        }
-
-        window.addEventListener('keydown', (e) => {
+        window.addEventListener('keydown', e => {
             if (e.key.toLowerCase() === 't') toggleTelemetry();
         });
 
-        // Uniwersalna konfiguracja wykresów
-        const config = (label, color) => ({
+        // Konfiguracja wykresów — identyczna jak w Tello
+        const makeConfig = (label, color) => ({
             type: 'line',
-            data: { 
-                labels: Array(50).fill(''), 
-                datasets: [{ 
-                    label: label, 
-                    data: Array(50).fill(0), 
-                    borderColor: color, 
-                    borderWidth: 2, 
-                    tension: 0.3, 
-                    pointRadius: 0 
-                }] 
+            data: {
+                labels: Array(60).fill(''),
+                datasets: [{
+                    label: label,
+                    data: Array(60).fill(0),
+                    borderColor: color,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0
+                }]
             },
-            options: { 
-                animation: false, 
+            options: {
+                animation: false,
                 responsive: false,
-                scales: { 
-                    y: { min: -100, max: 100, grid: { color: '#222' }, ticks: { color: '#888' } },
+                scales: {
+                    y: {
+                        min: -160, max: 160,
+                        grid: { color: '#222' },
+                        ticks: { color: '#888' }
+                    },
                     x: { display: false }
                 },
-                plugins: { legend: { labels: { color: '#fff', font: { family: 'Courier New' } } } }
+                plugins: {
+                    legend: {
+                        labels: { color: '#fff', font: { family: 'Courier New' } }
+                    }
+                }
             }
         });
 
-        // Inicjalizacja 3 wykresów
-        const chartX = new Chart(document.getElementById('chartX'), config('Error X (Yaw)', '#ff00ff'));
-        const chartY = new Chart(document.getElementById('chartY'), config('Error Y (Pitch)', '#00ffff'));
-        const chartZ = new Chart(document.getElementById('chartZ'), config('Error Z (Dist)', '#ffff00'));
+        const chartX = new Chart(
+            document.getElementById('chartX'),
+            makeConfig('Error X (lewo/prawo)', '#ff00ff')
+        );
+        const chartY = new Chart(
+            document.getElementById('chartY'),
+            makeConfig('Error Y (góra/dół)', '#00ffff')
+        );
 
-        // Pobieranie danych
+        // Polling telemetrii co 100ms — identycznie jak w Tello
         setInterval(() => {
-            if (!showTelemetry) return;
+            fetch('/telemetry')
+                .then(r => r.json())
+                .then(data => {
+                    const detected = data.detected;
 
-            fetch('/telemetry').then(res => res.json()).then(data => {
-                const update = (chart, val) => {
-                    chart.data.datasets[0].data.push(val);
-                    chart.data.datasets[0].data.shift();
-                    chart.update();
-                };
+                    // Kropka statusu detekcji
+                    const dot = document.getElementById('detDot');
+                    dot.className = detected ? 'dot-ok' : 'dot-lost';
 
-                // Aktualizacja wykresów błędami
-                update(chartX, data.err_x);
-                update(chartY, data.err_y);
-                update(chartZ, data.err_z);
+                    // Pasek zawsze widoczny
+                    document.getElementById('infoX').innerText    = data.err_x;
+                    document.getElementById('infoY').innerText    = data.err_y;
+                    document.getElementById('infoBatt').innerText = data.batt;
 
-                // Aktualizacja wartości tekstowych sterowania
-                document.getElementById('valX').innerText = data.ctrl_x;
-                document.getElementById('valY').innerText = data.ctrl_y;
-                document.getElementById('valZ').innerText = data.ctrl_z;
-                document.getElementById('valBatt').innerText = data.batt + '%';
-            });
+                    // Wykresy i overlay — tylko gdy otwarte
+                    if (showTelemetry) {
+                        chartX.data.datasets[0].data.push(data.err_x);
+                        chartX.data.datasets[0].data.shift();
+                        chartY.data.datasets[0].data.push(data.err_y);
+                        chartY.data.datasets[0].data.shift();
+                        chartX.update();
+                        chartY.update();
+
+                        document.getElementById('valX').innerText    = data.err_x;
+                        document.getElementById('valY').innerText    = data.err_y;
+                        document.getElementById('valBatt').innerText = data.batt;
+                    }
+                });
         }, 100);
     </script>
 </body>

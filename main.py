@@ -113,8 +113,6 @@ def gen_frames():
             # s_hz = filter_z.apply(h_tors)
             # last_filtered_height = s_hz
 
-            err_x = int(s_cx - c_x)
-            err_y = int(c_y - s_cy)
 
             # target_angle_x = reg_x.update(s_cx - c_x)
             # target_angle_y = reg_y.update(c_y - s_cy)

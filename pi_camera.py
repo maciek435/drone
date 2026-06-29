@@ -1,6 +1,7 @@
 import threading
 import time
 import config
+import cv2
 
 class PiVideoStream:
     def __init__(self, width=320, height=240):
@@ -29,7 +30,7 @@ class PiVideoStream:
 
     def _update(self):
         while not self.stopped:
-            self.frame = self.cam.capture_array()
+            self.frame = cv2.rotate(self.cam.capture_array(), cv2.ROTATE_180)
     
     def read(self):
         return self.frame.copy() if self.frame is not None else None

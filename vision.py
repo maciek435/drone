@@ -1,24 +1,25 @@
 import cv2
 import mediapipe as mp
+import config
 
 class PoseDetector:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
-            model_complexity=0,
+            model_complexity=config.MP_MODEL_COMPLEXITY,
             smooth_landmarks=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_detection_confidence=config.MP_DETECTION_CONFIDENCE,
+            min_tracking_confidence=config.MP_TRACKING_CONFIDENCE
         )
         self.last_h_tors = None
 
         #target lock
         self.locked_cx = None
         self.locked_cy = None
-        self.lock_max_jump = 40
+        self.lock_max_jump = config.LOCK_MAX_JUMP
         self.lost_frames = 0
-        self.lost_frames_limit = 10
+        self.lost_frames_limit = config.LOST_FRAMES_LIMIT
 
     def lock_reset(self):
         self.locked_cx = None
@@ -81,7 +82,6 @@ class PoseDetector:
         return None, None, None, None
 
     def _handle_lost(self):
-        """Zlicza klatki bez detekcji i resetuje lock po przekroczeniu limitu."""
         self.lost_frames += 1
         if self.lost_frames >= self.lost_frames_limit:
             self.locked_cx = None

@@ -1,5 +1,5 @@
 class Regulator:
-    def __init__(self, kp=0.12, kd=0.1, max_output=50):
+    def __init__(self, kp, kd, max_output):
         self.kp = kp
         self.kd = kd
         self.max_output = max_output
@@ -15,7 +15,7 @@ class Regulator:
         self.prev_error = 0
 
 class KalmanLite:
-    def __init__(self, process_noise=0.05, measurement_noise=2.0):
+    def __init__(self, process_noise, measurement_noise):
         self.q = process_noise
         self.r = measurement_noise
         self.x = None
@@ -36,7 +36,7 @@ class KalmanLite:
         self.p = 1.0
 
 class DistanceRegulator:
-    def __init__(self, kp=0.2, kd=0.05, max_jump=15, max_output=50):
+    def __init__(self, kp, kd, max_jump, max_output):
         self.kp = kp
         self.kd = kd               
         self.max_jump = max_jump

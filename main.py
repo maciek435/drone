@@ -7,8 +7,9 @@ from regulator import KalmanLite, Regulator, DistanceRegulator
 from vision import PoseDetector
 import config
 from pi_camera import PiVideoStream
+from inav_control import MSPController
 
-
+msp = MSPController()
 app = Flask(__name__)
 vs = PiVideoStream().start()
 detector = PoseDetector()
@@ -38,6 +39,15 @@ telemetry_data = {
 
 latest_detection = {"cx": None, "cy": None, "h_tors": None, "pts": None}
 detection_lock = threading.Lock()
+latest_baterry = {"voltage": None}
+battery_lock = threading.Lock()
+
+def battery_worker():
+    while True:
+        v = msp.get_battery_voltage()
+        with battery_lock:
+            latest_baterry["voltage"] = v
+        time.sleep(1.0)
 
 def detection_worker():
     while True:
@@ -78,7 +88,6 @@ def detection_worker():
 def gen_frames():
     global telemetry_data
     # , target_angle_x, target_angle_y, last_filtered_height, target_speed_z
-    # global cached_battery, last_battery_time
     p_time = 0
 
     while True:
@@ -86,6 +95,10 @@ def gen_frames():
         if frame is None:
             time.sleep(0.01)
             continue
+
+        with battery_lock:
+            batt = latest_baterry["voltage"]
+        batt_str = f"{batt}V" if batt is not None else "--"
 
         img = frame
         h, w, _ = img.shape
@@ -126,7 +139,7 @@ def gen_frames():
                 # "ctrl_x": round(target_angle_x, 1),
                 # "ctrl_y": round(target_angle_y, 1),
                 # "ctrl_z": round(target_speed_z, 1),
-                "batt": "--",
+                "batt": batt_str,
                 "detected": True
             }
 
@@ -143,7 +156,7 @@ def gen_frames():
             # target_speed_z = 0
             # reg_x.reset()
             # reg_y.reset()
-            telemetry_data = {"err_x": 0, "err_y": 0, "batt": "--", "detected": False}
+            telemetry_data = {"err_x": 0, "err_y": 0, "batt": batt_str, "detected": False}
             filter_x.reset()
             filter_y.reset()
 
@@ -157,6 +170,7 @@ def gen_frames():
         time.sleep(0.033)
 
 threading.Thread(target=detection_worker, daemon=True).start()
+threading.Thread(target=battery_worker, daemon=True).start()
 # threading.Thread(target=flight_worker, daemon=True).start()
 
 @app.route('/')

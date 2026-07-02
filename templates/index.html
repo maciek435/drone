@@ -73,7 +73,8 @@
         <span id="detDot" class="dot-lost">●</span>
         ERR_X: <span id="infoX" style="color:#ff00ff">0</span> px |
         ERR_Y: <span id="infoY" style="color:#00ffff">0</span> px |
-        BATT: <span id="infoBatt" style="color:#0f0">--</span>
+        BATT: <span id="infoBatt" style="color:#0f0">--</span> |
+        FOLLOW: <span id="infoFollow" style="color:#ff0">OFF</span>
     </div>
 
     <!-- Overlay z wykresami -->
@@ -154,14 +155,23 @@
                 .then(data => {
                     const detected = data.detected;
 
-                    // Kropka statusu detekcji
-                    const dot = document.getElementById('detDot');
-                    dot.className = detected ? 'dot-ok' : 'dot-lost';
-
                     // Pasek zawsze widoczny
                     document.getElementById('infoX').innerText    = data.err_x;
                     document.getElementById('infoY').innerText    = data.err_y;
                     document.getElementById('infoBatt').innerText = data.batt;
+
+                    // Kropka statusu detekcji
+                    const dot = document.getElementById('detDot');
+                    dot.className = detected ? 'dot-ok' : 'dot-lost';
+                    
+                    const followEl = document.getElementById('infoFollow');
+                    if (data.follow) {
+                        followEl.innerText = 'ON';
+                        followEl.style.color = '#0f0';
+                    } else {
+                        followEl.innerText = 'OFF';
+                        followEl.style.color = '#f44';
+                    }
 
                     // Wykresy i overlay — tylko gdy otwarte
                     if (showTelemetry) {

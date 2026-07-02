@@ -7,6 +7,8 @@ import config
 
 class MSPController:
     MSP_ANALOG = 110
+    MSP_SET_RAW_RC = 200
+    MSP_RC = 105
 
     def __init__(self):
         self.ser = serial.Serial(
@@ -23,7 +25,7 @@ class MSPController:
         for b in payload:
             checksum ^= b
         return bytes([ord('$'), ord('M'), ord('<'), size, command]) + payload + bytes([checksum])
-
+    
     def _read_response(self, expected_command, timeout=0.5):
         """
         Czyta i parsuje odpowiedź MSP. Zwraca payload (bytes) lub None przy błędzie.
@@ -52,6 +54,22 @@ class MSPController:
 
         return None
 
+    def get_rc_channels(self):
+        request = self._build_request(self.MSP_RC)
+        self.ser.reset_input_buffer()
+        self.ser.write(request)
+
+        payload = self._read_response(self.MSP_RC)
+        if payload and len(payload) >= 6:
+            channels = []
+            for i in range(0, len(payload), 2):
+                if i + 1 < len(payload):
+                    val = int.from_bytes(payload[i:i+2], byteorder='little')
+                    channels.append(val)
+            return channels
+        return None
+
+    
     def get_battery_voltage(self):
         """
         Zwraca napięcie baterii w woltach (float), lub None jeśli brak odpowiedzi.
@@ -66,6 +84,20 @@ class MSPController:
             vbat_raw = payload[0]
             return round(vbat_raw / 10.0, 1)
         return None
+
+    def set_yaw(self, yaw_value):
+        yaw_value = max(1000, min(2000, int(yaw_value)))
+
+        channels = [1500] * 18
+        channels[2] = yaw_value
+
+        payload = b''
+        for ch in channels:
+            payload +=ch.to_bytes(2, byteorder='little')
+        
+        request = self._build_request(self.MSP_SET_RAW_RC, payload)
+        self.ser.reset_input_buffer()
+        self.ser.write(request)
 
     def close(self):
         self.ser.close()

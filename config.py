@@ -27,7 +27,7 @@ KALMAN_MEASUREMENT_NOISE_Z   = 3.0
 # ── Regulator PD — oś X (yaw) ─────────────────────────────────────────────────
 REG_X_KP         = 0.5
 REG_X_KD         = 0.3
-REG_X_MAX_OUTPUT = 60
+REG_X_MAX_OUTPUT = 30
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.5

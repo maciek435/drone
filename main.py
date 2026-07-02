@@ -24,23 +24,30 @@ filter_y = KalmanLite(
     measurement_noise=config.KALMAN_MEASUREMENT_NOISE_XY
 )
 # filter_z = KalmanLite(process_noise=0.1, measurement_noise=3.0) #0.05 5.0
-# reg_x = Regulator(kp=0.5, kd=0.3, max_output=60) #50
+reg_x = Regulator(kp=config.REG_X_KP, kd=config.REG_X_KD, max_output=config.REG_X_MAX_OUTPUT)
 # reg_y = Regulator(kp=0.5, kd=0.3, max_output=40) #50
 # reg_z = DistanceRegulator(kp=1.5, max_jump=15, max_output=50)
 
 telemetry_data = {
     "err_x": 0, 
     "err_y": 0,
-    "batt": "--"
+    "batt": "--",
+    "detected": False, 
+    "follow": False
 }
-# running = True
-# follow_active = False
-# last_filtered_height = 0
 
+# last_filtered_height = 0
 latest_detection = {"cx": None, "cy": None, "h_tors": None, "pts": None}
 detection_lock = threading.Lock()
+
+latest_filtered = {"cx": None, "cy": None}
+filtered_lock = threading.Lock()
+
 latest_baterry = {"voltage": None}
 battery_lock = threading.Lock()
+
+follow_active = False
+follow_lock = threading.Lock()
 
 def battery_worker():
     while True:
@@ -48,6 +55,16 @@ def battery_worker():
         with battery_lock:
             latest_baterry["voltage"] = v
         time.sleep(1.0)
+
+def switch_worker():
+    global follow_active
+    while True:
+        channels = msp.get_rc_channels()
+        if channels and len(channels) >= 8:
+            switch_val = channels[7]
+            with follow_lock:
+                follow_active = switch_val > 1700
+        time.sleep(0.1)
 
 def detection_worker():
     while True:
@@ -62,32 +79,36 @@ def detection_worker():
             latest_detection["h_tors"] = h_tors
             latest_detection["pts"] = pts
 
-# def flight_worker():
-#     global target_angle_x, target_angle_y, target_speed_z, running, follow_active
-#     MAX_SPEED = 70
-#     DEADZONE = 5
 
-#     while running:
-#         if follow_active and target_angle_x != 0:
-#             yaw_speed = int(target_angle_x)
-#             if abs(yaw_speed) < DEADZONE:
-#                 yaw_speed = 0
-#             up_down_speed = int(target_angle_y)
-#             if abs(up_down_speed) < DEADZONE:
-#                 up_down_speed = 0
-#             fwd_speed = int(target_speed_z)
-#             # if abs(fwd_speed) < DEADZONE:
-#             #     fwd_speed = 0
 
-#             vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
-#         else:
-#             if vs.tello.is_flying:
-#                 vs.tello.send_rc_control(0, 0, 0, 0)
-#         time.sleep(0.05)
+def flight_worker():
+    while True:
+        with follow_lock:
+                active = follow_active
+
+        if active:
+            with filtered_lock:
+                s_cx = latest_filtered["cx"]
+
+            if s_cx is not None:
+                frame_center_x = config.FRAME_WIDTH // 2
+                error_x = s_cx - frame_center_x
+
+                if abs(error_x) < config.DEADZONE_W:
+                    msp.set_yaw(1500)
+                else:
+                    correction = reg_x.update(error_x)
+                    yaw = int(1500 + correction)
+                    msp.set_yaw(yaw)
+            else:
+                reg_x.reset()
+                msp.set_yaw(1500)
+
+        time.sleep(0.05)
+
 
 def gen_frames():
     global telemetry_data
-    # , target_angle_x, target_angle_y, last_filtered_height, target_speed_z
     p_time = 0
 
     while True:
@@ -99,6 +120,9 @@ def gen_frames():
         with battery_lock:
             batt = latest_baterry["voltage"]
         batt_str = f"{batt}V" if batt is not None else "--"
+
+        with follow_lock:
+            follow = follow_active
 
         img = frame
         h, w, _ = img.shape
@@ -123,24 +147,17 @@ def gen_frames():
         if cx is not None:
             s_cx = filter_x.apply(cx)
             s_cy = filter_y.apply(cy)
-            # s_hz = filter_z.apply(h_tors)
-            # last_filtered_height = s_hz
 
-
-            # target_angle_x = reg_x.update(s_cx - c_x)
-            # target_angle_y = reg_y.update(c_y - s_cy)
-            # target_speed_z = reg_z.update(s_hz)
-            # err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
+            with filtered_lock:
+                latest_filtered["cx"] = s_cx
+                latest_filtered["cy"] = s_cy
 
             telemetry_data = {
                 "err_x": int(c_x - s_cx),
                 "err_y": int(c_y - s_cy),
-                # "err_z": int(err_z),
-                # "ctrl_x": round(target_angle_x, 1),
-                # "ctrl_y": round(target_angle_y, 1),
-                # "ctrl_z": round(target_speed_z, 1),
                 "batt": batt_str,
-                "detected": True
+                "detected": True,
+                "follow": follow
             }
 
             if pts:
@@ -151,12 +168,16 @@ def gen_frames():
 
             cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
         else:
-            # target_angle_x = 0
-            # target_angle_y = 0
-            # target_speed_z = 0
-            # reg_x.reset()
-            # reg_y.reset()
-            telemetry_data = {"err_x": 0, "err_y": 0, "batt": batt_str, "detected": False}
+            with filtered_lock:
+                latest_filtered["cx"] = None
+                latest_filtered["cy"] = None
+
+            telemetry_data = {
+                "err_x": 0, "err_y": 0,
+                "batt": batt_str,
+                "detected": False,
+                "follow": follow
+            }
             filter_x.reset()
             filter_y.reset()
 
@@ -171,6 +192,7 @@ def gen_frames():
 
 threading.Thread(target=detection_worker, daemon=True).start()
 threading.Thread(target=battery_worker, daemon=True).start()
+threading.Thread(target=switch_worker, daemon=True).start()
 # threading.Thread(target=flight_worker, daemon=True).start()
 
 @app.route('/')
@@ -181,8 +203,6 @@ def video_feed(): return Response(gen_frames(), mimetype='multipart/x-mixed-repl
 
 @app.route('/telemetry')
 def telemetry(): return Response(json.dumps(telemetry_data), mimetype='application/json')
-
-
 
 if __name__ == '__main__':
     app.run(

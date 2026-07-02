@@ -44,17 +44,11 @@ latest_filtered = {"cx": None, "cy": None}
 filtered_lock = threading.Lock()
 
 latest_baterry = {"voltage": None}
-battery_lock = threading.Lock()
+# battery_lock = threading.Lock()
 
 follow_active = False
 follow_lock = threading.Lock()
 
-def battery_worker():
-    while True:
-        v = msp.get_battery_voltage()
-        with battery_lock:
-            latest_baterry["voltage"] = v
-        time.sleep(1.0)
 
 def switch_worker():
     global follow_active
@@ -85,10 +79,12 @@ def flight_worker():
     while True:
         with follow_lock:
                 active = follow_active
+        
 
         if active:
             with filtered_lock:
                 s_cx = latest_filtered["cx"]
+
 
             if s_cx is not None:
                 frame_center_x = config.FRAME_WIDTH // 2
@@ -117,9 +113,10 @@ def gen_frames():
             time.sleep(0.01)
             continue
 
-        with battery_lock:
-            batt = latest_baterry["voltage"]
-        batt_str = f"{batt}V" if batt is not None else "--"
+        # with battery_lock:
+        #     batt = latest_baterry["voltage"]
+        # batt_str = f"{batt}V" if batt is not None else "--"
+        batt_str = "--"
 
         with follow_lock:
             follow = follow_active
@@ -191,9 +188,9 @@ def gen_frames():
         time.sleep(0.033)
 
 threading.Thread(target=detection_worker, daemon=True).start()
-threading.Thread(target=battery_worker, daemon=True).start()
+# threading.Thread(target=battery_worker, daemon=True).start()
 threading.Thread(target=switch_worker, daemon=True).start()
-# threading.Thread(target=flight_worker, daemon=True).start()
+threading.Thread(target=flight_worker, daemon=True).start()
 
 @app.route('/')
 def home(): return render_template("index.html")

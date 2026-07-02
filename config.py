@@ -41,7 +41,7 @@ REG_Z_MAX_JUMP   = 15
 REG_Z_MAX_OUTPUT = 50
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
-DEADZONE_W = 60   # połowa szerokości [px] — od środka kadru w lewo i prawo
+DEADZONE_W = 30   # połowa szerokości [px] — od środka kadru w lewo i prawo
 DEADZONE_H = 40   # połowa wysokości [px]  — od środka kadru w górę i dół
 
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────

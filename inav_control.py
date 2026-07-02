@@ -3,6 +3,7 @@
 import serial
 import time
 import config
+import threading
 
 
 class MSPController:
@@ -14,8 +15,9 @@ class MSPController:
         self.ser = serial.Serial(
             config.UART_PORT,
             config.UART_BAUDRATE,
-            timeout=0.5
+            timeout=0.1
         )
+        self.uart_lock = threading.Lock()
         time.sleep(0.5)
 
     def _build_request(self, command, payload=b''):
@@ -50,17 +52,18 @@ class MSPController:
                             return payload
                         return None
             else:
-                time.sleep(0.01)
+                time.sleep(0.005)
 
         return None
 
     def get_rc_channels(self):
-        request = self._build_request(self.MSP_RC)
-        self.ser.reset_input_buffer()
-        self.ser.write(request)
+        with self.uart_lock:
+            request = self._build_request(self.MSP_RC)
+            self.ser.reset_input_buffer()
+            self.ser.write(request)
 
-        payload = self._read_response(self.MSP_RC)
-        if payload and len(payload) >= 6:
+            payload = self._read_response(self.MSP_RC)
+        if payload and len(payload) >= 2:
             channels = []
             for i in range(0, len(payload), 2):
                 if i + 1 < len(payload):
@@ -69,35 +72,20 @@ class MSPController:
             return channels
         return None
 
-    
-    def get_battery_voltage(self):
-        """
-        Zwraca napięcie baterii w woltach (float), lub None jeśli brak odpowiedzi.
-        MSP_ANALOG payload: [vbat(1B, 0.1V), mAhUsed(2B), rssi(2B), amperage(2B)]
-        """
-        request = self._build_request(self.MSP_ANALOG)
-        self.ser.reset_input_buffer()
-        self.ser.write(request)
-
-        payload = self._read_response(self.MSP_ANALOG)
-        if payload and len(payload) >= 1:
-            vbat_raw = payload[0]
-            return round(vbat_raw / 10.0, 1)
-        return None
-
     def set_yaw(self, yaw_value):
         yaw_value = max(1000, min(2000, int(yaw_value)))
 
         channels = [1500] * 18
-        channels[2] = yaw_value
+        channels[3] = yaw_value
 
         payload = b''
         for ch in channels:
             payload +=ch.to_bytes(2, byteorder='little')
         
-        request = self._build_request(self.MSP_SET_RAW_RC, payload)
-        self.ser.reset_input_buffer()
-        self.ser.write(request)
+        with self.uart_lock:
+            request = self._build_request(self.MSP_SET_RAW_RC, payload)
+            self.ser.reset_input_buffer()
+            self.ser.write(request)
 
     def close(self):
         self.ser.close()

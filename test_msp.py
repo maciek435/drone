@@ -1,19 +1,22 @@
-# test_yaw_verify.py
 from inav_control import MSPController
 import time
 
 msp = MSPController()
 
-# Najpierw odczyt bez override
-channels = msp.get_rc_channels()
-print(f"Przed override — kanał 3 (yaw): {channels[2] if channels else 'brak'}")
+print("Wysyłam 1560 tylko na kanale 4 (indeks 3)...")
 
-# Wyślij yaw = 1560
-msp.set_yaw(1560)
-time.sleep(0.1)
+start = time.time()
+while time.time() - start < 15:
+    channels = [1500] * 18
+    channels[3] = 1560  # indeks 3 = kanał 4
+    payload = b''
+    for ch in channels:
+        payload += ch.to_bytes(2, byteorder='little')
+    with msp.uart_lock:
+        request = msp._build_request(msp.MSP_SET_RAW_RC, payload)
+        msp.ser.reset_input_buffer()
+        msp.ser.write(request)
+    time.sleep(0.05)
 
-# Odczyt po wysłaniu
-channels = msp.get_rc_channels()
-print(f"Po set_yaw(1560) — kanał 3 (yaw): {channels[2] if channels else 'brak'}")
-
+print("Koniec")
 msp.close()

@@ -25,9 +25,9 @@ KALMAN_PROCESS_NOISE_Z       = 0.1
 KALMAN_MEASUREMENT_NOISE_Z   = 3.0
 
 # ── Regulator PD — oś X (yaw) ─────────────────────────────────────────────────
-REG_X_KP         = 0.5
+REG_X_KP         = 0.8
 REG_X_KD         = 0.3
-REG_X_MAX_OUTPUT = 30
+REG_X_MAX_OUTPUT = 50
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.5
@@ -41,8 +41,8 @@ REG_Z_MAX_JUMP   = 15
 REG_Z_MAX_OUTPUT = 50
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
-DEADZONE_W = 30   # połowa szerokości [px] — od środka kadru w lewo i prawo
-DEADZONE_H = 40   # połowa wysokości [px]  — od środka kadru w górę i dół
+DEADZONE_W = 20   # połowa szerokości [px] — od środka kadru w lewo i prawo
+DEADZONE_H = 20  # połowa wysokości [px]  — od środka kadru w górę i dół
 
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────
 UART_PORT     = "/dev/serial0"  

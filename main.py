@@ -92,6 +92,7 @@ def flight_worker():
 
                 if abs(error_x) < config.DEADZONE_W:
                     msp.set_yaw(1500)
+                    reg_x.reset()
                 else:
                     correction = reg_x.update(error_x)
                     yaw = int(1500 + correction)

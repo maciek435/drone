@@ -34,17 +34,22 @@ cached_battery = 0
 last_battery_time = 0
 
 def detection_worker():
+    frame_count = 0
     while True:
+
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
-        cx, cy, h_tors, pts = detector.find_torso(frame)
-        with detection_lock:
-            latest_detection["cx"] = cx
-            latest_detection["cy"] = cy
-            latest_detection["h_tors"] = h_tors
-            latest_detection["pts"] = pts
+        if frame_count % 3 == 0:
+            cx, cy, h_tors, pts = detector.find_torso(frame)
+            with detection_lock:
+                latest_detection["cx"] = cx
+                latest_detection["cy"] = cy
+                latest_detection["h_tors"] = h_tors
+                latest_detection["pts"] = pts
+        frame_count += 1
+        
 
 def flight_worker():
     global target_angle_x, target_angle_y, target_speed_z, running, follow_active

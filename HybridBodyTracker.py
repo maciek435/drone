@@ -2,7 +2,8 @@ from regulator import KalmanCV1D
 from math import sqrt
 
 class HybridBodyTracker:
-    def __init__(self, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15):
+    def __init__(self, detect_fn, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15):
+        self.detect_fn = detect_fn
         self.detect_every_n = detect_every_n
         self.gate_radius = gate_radius
         self.confirm_frames = confirm_frames
@@ -16,6 +17,35 @@ class HybridBodyTracker:
 
         self.candidate_pos = None
         self.candidate_count = 0
+    
+    def update(self, frame):
+        self.frame_idx += 1
+        run_detection = (self.state !="LOCKED") or (self.frame_idx % self.detect_every_n == 0)
+        if run_detection:
+            result = self.detect_fn(frame)
+            if result is None:
+                det_x, det_y = None, None
+            else:
+                det_x, det_y = result
+        else:
+            det_x, det_y = None, None
+
+        if self.state == "LOCKED" :
+            cx, cy, locked = self._update_locked(det_x, det_y)
+        else:
+            confirmed = self._update_lost(det_x, det_y) 
+            if confirmed:
+                cx = self.filter_x.x
+                cy = self.filter_y.x
+                locked = True
+            else:
+                cx = None
+                cy = None
+                locked = False
+
+        return cx, cy, locked
+            
+        
 
     def is_same_target(self, det_x, det_y, pred_x, pred_y, gate_radius):
         if self.distance(det_x, det_y, pred_x, pred_y) <= gate_radius:

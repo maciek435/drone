@@ -124,5 +124,11 @@ class HybridBodyTracker:
                 locked = False
 
         return cx, cy, locked
+
+    def reset(self):
+        self.state = "LOST"
+        self.candidate_pos = None
+        self.candidate_count = 0
+        self.cv_tracker = None
             
 

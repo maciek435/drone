@@ -4,20 +4,33 @@ import json
 import threading
 from flask import Flask, Response, render_template
 from tello_camera import VideoStream
-from regulator import KalmanLite, Regulator, DistanceRegulator
+from regulator import KalmanLite, Regulator, DistanceRegulator, KalmanCV1D
 from vision import PoseDetector
+from tracker import HybridBodyTracker
 
 
 app = Flask(__name__)
 vs = VideoStream().start()
 detector = PoseDetector()
 
+last_extra = {"h_tors": None, "pts": None}
 
-filter_x = KalmanLite(process_noise=0.05, measurement_noise=5.0)
-filter_y = KalmanLite(process_noise=0.05, measurement_noise=5.0)
-filter_z = KalmanLite(process_noise=0.1, measurement_noise=3.0) #0.05 5.0
-reg_x = Regulator(kp=0.5, kd=0.3, max_output=60) #50
-reg_y = Regulator(kp=0.5, kd=0.3, max_output=40) #50
+def detect_fn(frame):
+    result = detector.find_torso(frame)
+
+    if result is None:
+        return None
+    
+    last_extra["h_tors"] = result["h_tors"]
+    last_extra["pts"] = result["pts"]
+
+    return (result["cx"], result["cy"], result["bbox"])
+
+tracker = HybridBodyTracker(detect_fn)
+
+filter_z = KalmanLite(process_noise=0.1, measurement_noise=3.0)
+reg_x = Regulator(kp=0.5, kd=0.3, max_output=60) 
+reg_y = Regulator(kp=0.5, kd=0.3, max_output=40) 
 reg_z = DistanceRegulator(kp=1.5, max_jump=15, max_output=50)
 
 target_angle_x = 0
@@ -28,28 +41,11 @@ running = True
 follow_active = False
 last_filtered_height = 0
 
-latest_detection = {"cx": None, "cy": None, "h_tors": None, "pts": None}
-detection_lock = threading.Lock()
+latest_track = {"cx": None, "cy": None, "locked": False}
+track_lock = threading.Lock()
+
 cached_battery = 0
 last_battery_time = 0
-
-def detection_worker():
-    frame_count = 0
-    while True:
-
-        frame = vs.read()
-        if frame is None:
-            time.sleep(0.01)
-            continue
-        if frame_count % 3 == 0:
-            cx, cy, h_tors, pts = detector.find_torso(frame)
-            with detection_lock:
-                latest_detection["cx"] = cx
-                latest_detection["cy"] = cy
-                latest_detection["h_tors"] = h_tors
-                latest_detection["pts"] = pts
-        frame_count += 1
-        
 
 def flight_worker():
     global target_angle_x, target_angle_y, target_speed_z, running, follow_active
@@ -68,16 +64,30 @@ def flight_worker():
             # if abs(fwd_speed) < DEADZONE:
             #     fwd_speed = 0
 
-            vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
+            # vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
+            vs.tello.send_rc_control(0, 0, 0, yaw_speed)
         else:
             if vs.tello.is_flying:
                 vs.tello.send_rc_control(0, 0, 0, 0)
         time.sleep(0.05)
 
+def tracking_worker():
+    while True:
+        frame = vs.read()
+        if frame is None:
+            time.sleep(0.01)
+            continue
+        
+        cx, cy, locked = tracker.update(frame)
+        with track_lock:
+            latest_track["cx"] = cx
+            latest_track["cy"] = cy
+            latest_track["locked"] = locked
+
+
 def gen_frames():
     global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z
     global cached_battery, last_battery_time
-    p_time = 0
 
     while True:
         frame = vs.read()
@@ -92,15 +102,17 @@ def gen_frames():
         cv2.line(img, (c_x - 10, c_y), (c_x + 10, c_y), (255, 255, 255), 1)
         cv2.line(img, (c_x, c_y - 10), (c_x, c_y + 10), (255, 255, 255), 1)
 
-        with detection_lock:
-            cx = latest_detection["cx"]
-            cy = latest_detection["cy"]
-            h_tors = latest_detection["h_tors"]
-            pts = latest_detection["pts"]
+        with track_lock:
+            cx = latest_track["cx"]
+            cy = latest_track["cy"]
+            locked = latest_track["locked"]
+            h_tors = last_extra["h_tors"]
+            pts = last_extra["pts"]
+            
 
-        if cx is not None:
-            s_cx = filter_x.apply(cx)
-            s_cy = filter_y.apply(cy)
+        if locked:
+            s_cx = cx
+            s_cy = cy
             s_hz = filter_z.apply(h_tors)
             last_filtered_height = s_hz
 
@@ -138,16 +150,12 @@ def gen_frames():
             reg_x.reset()
             reg_y.reset()
 
-        fps = 1 / (time.time() - p_time + 0.0001)
-        p_time = time.time()
-        cv2.putText(img, f"FPS: {int(fps)}", (10, 25), 1, 1, (0, 255, 0), 2)
-
         ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 25])
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
         time.sleep(0.033)
 
-threading.Thread(target=detection_worker, daemon=True).start()
+threading.Thread(target=tracking_worker, daemon=True).start()
 threading.Thread(target=flight_worker, daemon=True).start()
 
 @app.route('/')
@@ -182,10 +190,10 @@ def toggle_follow():
     follow_active = not follow_active
     if follow_active:
         reg_z.set_reference(last_filtered_height)
-        detector.lock_reset()
+        tracker.reset()
         print(f"Śledzenie aktywne! Cel odległości: {last_filtered_height}px")
     else:
-        detector.lock_reset() 
+        tracker.reset() 
     
     return json.dumps({"status": "ok", "active": follow_active})
 

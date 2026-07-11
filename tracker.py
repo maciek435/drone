@@ -2,15 +2,15 @@ from regulator import KalmanCV1D
 from math import sqrt
 
 class HybridBodyTracker:
-    def __init__(self, detect_fn, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15):
+    def __init__(self, detect_fn, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15, q=0.3, r=1.0):
         self.detect_fn = detect_fn
         self.detect_every_n = detect_every_n
         self.gate_radius = gate_radius
         self.confirm_frames = confirm_frames
         self.max_misses = max_misses
 
-        self.filter_x = KalmanCV1D(q=0.3, r=1.0)
-        self.filter_y = KalmanCV1D(q=0.3, r=1.0)
+        self.filter_x = KalmanCV1D(q=q, r=r)
+        self.filter_y = KalmanCV1D(q=q, r=r)
 
         self.state = "LOST"
         self.frame_idx = 0

@@ -2,6 +2,7 @@ import cv2
 import time
 import json
 import threading
+import config
 from flask import Flask, Response, render_template
 from tello_camera import VideoStream
 from regulator import KalmanLite, Regulator, DistanceRegulator, KalmanCV1D
@@ -26,12 +27,20 @@ def detect_fn(frame):
 
     return (result["cx"], result["cy"], result["bbox"])
 
-tracker = HybridBodyTracker(detect_fn)
+tracker = HybridBodyTracker(
+    detect_fn,
+    detect_every_n=config.TRACKER_DETECT_EVERY_N,
+    gate_radius=config.TRACKER_GATE_RADIUS,
+    confirm_frames=config.TRACKER_CONFIRM_FRAMES,
+    max_misses=config.TRACKER_MAX_MISSES,
+    q=config.TRACKER_KALMAN_Q,
+    r=config.TRACKER_KALMAN_R,
+)
 
-filter_z = KalmanLite(process_noise=0.1, measurement_noise=3.0)
-reg_x = Regulator(kp=0.5, kd=0.3, max_output=60) 
-reg_y = Regulator(kp=0.5, kd=0.3, max_output=40) 
-reg_z = DistanceRegulator(kp=1.5, max_jump=15, max_output=50)
+filter_z = KalmanLite(process_noise=config.FILTER_Z_PROCESS_NOISE, measurement_noise=config.FILTER_Z_MEASUREMENT_NOISE)
+reg_x = Regulator(kp=config.REG_X_KP, kd=config.REG_X_KD, max_output=config.REG_X_MAX_OUTPUT) 
+reg_y = Regulator(kp=config.REG_Y_KP, kd=config.REG_Y_KD, max_output=config.REG_Y_MAX_OUTPUT) 
+reg_z = DistanceRegulator(kp=config.REG_Z_KP, max_jump=config.REG_Z_MAX_JUMP, max_output=config.REG_Z_MAX_OUTPUT)
 
 target_angle_x = 0
 target_angle_y = 0
@@ -49,19 +58,17 @@ last_battery_time = 0
 
 def flight_worker():
     global target_angle_x, target_angle_y, target_speed_z, running, follow_active
-    MAX_SPEED = 70
-    DEADZONE = 5
 
     while running:
         if follow_active and target_angle_x != 0:
             yaw_speed = int(target_angle_x)
-            if abs(yaw_speed) < DEADZONE:
+            if abs(yaw_speed) < config.DEADZONE:
                 yaw_speed = 0
             up_down_speed = int(target_angle_y)
-            if abs(up_down_speed) < DEADZONE:
+            if abs(up_down_speed) < config.DEADZONE:
                 up_down_speed = 0
             fwd_speed = int(target_speed_z)
-            # if abs(fwd_speed) < DEADZONE:
+            # if abs(fwd_speed) < config.DEADZONE:
             #     fwd_speed = 0
 
             # vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)

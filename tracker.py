@@ -66,8 +66,9 @@ class HybridBodyTracker:
         if track_ok:
             tcx = tbox[0] + tbox[2] / 2
             tcy = tbox[1] + tbox[3] / 2
+            h_est = tbox[3]
         else:
-            tcx, tcy = None, None
+            tcx, tcy, h_est = None, None, None
 
         self.filter_x.predict()
         self.filter_y.predict()
@@ -80,6 +81,8 @@ class HybridBodyTracker:
             self.cv_tracker = self._make_cv_tracker()
             self.cv_tracker.init(frame, det_bbox)
             locked = True
+            h_est = det_bbox[3]
+
         elif det_x is None and track_ok:
             self.filter_x.correct(tcx)
             self.filter_y.correct(tcy)
@@ -96,7 +99,7 @@ class HybridBodyTracker:
         cx = self.filter_x.x
         cy = self.filter_y.x
     
-        return cx, cy, locked
+        return cx, cy, locked, h_est
     
     def update(self, frame):
         self.frame_idx += 1
@@ -111,19 +114,21 @@ class HybridBodyTracker:
             det_x, det_y, det_bbox = None, None, None
 
         if self.state == "LOCKED" :
-            cx, cy, locked = self._update_locked(det_x, det_y, frame, det_bbox)
+            cx, cy, locked, h_est = self._update_locked(det_x, det_y, frame, det_bbox)
         else:
             confirmed = self._update_lost(det_x, det_y, det_bbox, frame) 
             if confirmed:
                 cx = self.filter_x.x
                 cy = self.filter_y.x
+                h_est = det_bbox[3]
                 locked = True
             else:
                 cx = None
                 cy = None
+                h_est = None
                 locked = False
 
-        return cx, cy, locked
+        return cx, cy, locked, h_est
 
     def reset(self):
         self.state = "LOST"

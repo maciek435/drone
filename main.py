@@ -8,6 +8,7 @@ from tello_camera import VideoStream
 from regulator import KalmanLite, Regulator, DistanceRegulator, KalmanCV1D
 from vision import PoseDetector
 from tracker import HybridBodyTracker
+from safety import SafetyGuard
 
 
 app = Flask(__name__)
@@ -36,6 +37,8 @@ tracker = HybridBodyTracker(
     q=config.TRACKER_KALMAN_Q,
     r=config.TRACKER_KALMAN_R,
 )
+
+safety_guard = SafetyGuard(min_htors_px=config.MIN_HTORS_PX, max_misses=10)
 
 filter_z = KalmanLite(process_noise=config.FILTER_Z_PROCESS_NOISE, measurement_noise=config.FILTER_Z_MEASUREMENT_NOISE)
 reg_x = Regulator(kp=config.REG_X_KP, kd=config.REG_X_KD, max_output=config.REG_X_MAX_OUTPUT) 
@@ -67,12 +70,19 @@ def flight_worker():
             up_down_speed = int(target_angle_y)
             if abs(up_down_speed) < config.DEADZONE:
                 up_down_speed = 0
+
             fwd_speed = int(target_speed_z)
+
             # if abs(fwd_speed) < config.DEADZONE:
             #     fwd_speed = 0
 
+            with track_lock:
+                h_est = latest_track.get("h_est")
+                h_tors = last_extra["h_tors"]
+            fwd_speed = safety_guard.clamp_forward_speed(fwd_speed, h_tors)
             # vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
-            vs.tello.send_rc_control(0, 0, 0, yaw_speed)
+            vs.tello.send_rc_control(0, fwd_speed, up_down_speed, yaw_speed)
+            
         else:
             if vs.tello.is_flying:
                 vs.tello.send_rc_control(0, 0, 0, 0)
@@ -85,11 +95,13 @@ def tracking_worker():
             time.sleep(0.01)
             continue
         
-        cx, cy, locked = tracker.update(frame)
+        cx, cy, locked, h_est = tracker.update(frame)
+       # print(f"state={tracker.state} h_est={h_est} misses_kalman={tracker.filter_x.misses}")
         with track_lock:
             latest_track["cx"] = cx
             latest_track["cy"] = cy
             latest_track["locked"] = locked
+            latest_track["h_est"] = h_est
 
 
 def gen_frames():
@@ -126,6 +138,9 @@ def gen_frames():
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
             target_speed_z = reg_z.update(s_hz)
+            #print(f"h_tors={h_tors} s_hz={s_hz:.1f} target_height={reg_z.target_height} "
+            #    f"error={reg_z.target_height - s_hz if reg_z.target_height else None} "
+            #    f"target_speed_z={target_speed_z:.1f}")
             err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
 
             now = time.time()

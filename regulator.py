@@ -69,7 +69,7 @@ class KalmanLite:
         self.p = 1.0
 
 class DistanceRegulator:
-    def __init__(self, kp=0.2, kd=0.05, max_jump=15, max_output=50):
+    def __init__(self, kp=0.2, kd=0.05, max_jump=200, max_output=50):
         self.kp = kp
         self.kd = kd               
         self.max_jump = max_jump

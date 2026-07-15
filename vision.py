@@ -1,88 +1,56 @@
 import cv2
 import mediapipe as mp
-import config
 
 class PoseDetector:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
-            model_complexity=config.MP_MODEL_COMPLEXITY,
+            model_complexity=0,
             smooth_landmarks=False,
-            min_detection_confidence=config.MP_DETECTION_CONFIDENCE,
-            min_tracking_confidence=config.MP_TRACKING_CONFIDENCE
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
         )
         self.last_h_tors = None
 
-        #target lock
-        self.locked_cx = None
-        self.locked_cy = None
-        self.lock_max_jump = config.LOCK_MAX_JUMP
-        self.lost_frames = 0
-        self.lost_frames_limit = config.LOST_FRAMES_LIMIT
-
-    def lock_reset(self):
-        self.locked_cx = None
-        self.locked_cy = None
-        self.lost_frames = 0
-
-    def find_torso(self, frame):
+    def find_torso(self, frame, bbox_margin=0.25):
         h, w, _ = frame.shape
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.pose.process(rgb_frame)
-        
+
         if results.pose_landmarks:
             lm = results.pose_landmarks.landmark
-            try:
-                key_points = [lm[11], lm[12], lm[23], lm[24]]
-                if any(p.visibility < 0.5 for p in key_points):
-                    return None, None, None, None
 
-                pts = {
-                    11: (int(lm[11].x * w), int(lm[11].y * h)),
-                    12: (int(lm[12].x * w), int(lm[12].y * h)),
-                    23: (int(lm[23].x * w), int(lm[23].y * h)),
-                    24: (int(lm[24].x * w), int(lm[24].y * h))
-                }
+            key_points = [lm[11], lm[12], lm[23], lm[24]]
+            if any(p.visibility < 0.5 for p in key_points):
+                return None
 
-                cx = int((pts[11][0] + pts[12][0]) / 2)
-                cy = int((pts[11][1] + pts[23][1]) / 2)
+            pts = {
+                11: (int(lm[11].x * w), int(lm[11].y * h)),
+                12: (int(lm[12].x * w), int(lm[12].y * h)),
+                23: (int(lm[23].x * w), int(lm[23].y * h)),
+                24: (int(lm[24].x * w), int(lm[24].y * h))
+            }
 
-                h_left = pts[23][1] - pts[11][1]
-                h_right = pts[24][1] - pts[12][1]
-                h_tors = (h_left + h_right) / 2
+            cx = int((pts[11][0] + pts[12][0]) / 2)
+            cy = int((pts[11][1] + pts[23][1]) / 2)
 
-                if h_tors <= 0:
-                    return None, None, None, None
+            h_left = pts[23][1] - pts[11][1]
+            h_right = pts[24][1] - pts[12][1]
+            h_tors = (h_left + h_right) / 2
 
-                if self.locked_cx is None:
-                    self.locked_cx = cx
-                    self.locked_cy = cy
-                    self.lost_frames = 0
-                    self.last_h_tors = h_tors
-                    return cx, cy, h_tors, pts
-                
-                dist = ((cx - self.locked_cx) ** 2 + (cy - self.locked_cy) ** 2) ** 0.5
-                if dist > self.lock_max_jump:
-                    self._handle_lost()
-                    return None, None, None, None
-                
+            if h_tors <= 0:
+                return None
 
-                self.locked_cx = cx
-                self.locked_cy = cy
-                self.lost_frames = 0
-                self.last_h_tors = h_tors
-                return cx, cy, h_tors, pts
+            xs = [p[0] for p in pts.values()]
+            ys = [p[1] for p in pts.values()]
+            x1, x2 = min(xs), max(xs)
+            y1, y2 = min(ys), max(ys)
 
-            except:
-                self._handle_lost()
-                return None, None, None, None
-        
-        self._handle_lost()
-        return None, None, None, None
+            bw = x2 - x1
+            bh = y2 - y1
+            bbox = (x1, y1, bw, bh)
 
-    def _handle_lost(self):
-        self.lost_frames += 1
-        if self.lost_frames >= self.lost_frames_limit:
-            self.locked_cx = None
-            self.locked_cy = None
+            return {"cx": cx, "cy": cy, "h_tors": h_tors, "pts": pts, "bbox": bbox}        
+        else:
+            return None

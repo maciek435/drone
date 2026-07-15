@@ -87,5 +87,26 @@ class MSPController:
             self.ser.reset_input_buffer()
             self.ser.write(request)
 
+    def set_rc(self, yaw=1500, pitch=1500, roll=1500, throttle=1500):
+        yaw = max(1000, min(2000, int(yaw)))
+        pitch = max(1000, min(2000, int(pitch)))
+        roll = max(1000, min(2000, int(roll)))
+        throttle = max(1000, min(2000, int(throttle)))
+
+        channels = [1500] * 18
+        channels[0] = roll        
+        channels[1] = pitch       
+        channels[2] = throttle    
+        channels[3] = yaw
+
+        payload = b''
+        for ch in channels:
+            payload += ch.to_bytes(2, byteorder='little')
+
+        with self.uart_lock:
+            request = self._build_request(self.MSP_SET_RAW_RC, payload)
+            self.ser.reset_input_buffer()
+            self.ser.write(request)
+
     def close(self):
         self.ser.close()

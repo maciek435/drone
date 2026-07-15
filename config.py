@@ -14,20 +14,22 @@ MP_DETECTION_CONFIDENCE = 0.5
 MP_TRACKING_CONFIDENCE  = 0.5
 MP_MODEL_COMPLEXITY     = 0    # 0 = najszybszy 
 
-# ── Target lock (vision.py) ───────────────────────────────────────────────────
-LOCK_MAX_JUMP       = 40   # maks. przeskok punktu między klatkami [px]
-LOST_FRAMES_LIMIT   = 10   # ile klatek bez detekcji zanim reset locka
+# ── Body Tracker ─────────────────────────────────────────────────────────────
+TRACKER_DETECT_EVERY_N = 3
+TRACKER_GATE_RADIUS = 30
+TRACKER_CONFIRM_FRAMES = 3
+TRACKER_MAX_MISSES = 15
+TRACKER_KALMAN_Q = 0.3
+TRACKER_KALMAN_R = 1.0
 
-# ── Filtr Kalmana ─────────────────────────────────────────────────────────────
-KALMAN_PROCESS_NOISE_XY      = 0.05
-KALMAN_MEASUREMENT_NOISE_XY  = 5.0
-KALMAN_PROCESS_NOISE_Z       = 0.1
-KALMAN_MEASUREMENT_NOISE_Z   = 3.0
+#──── Filtr Kalmana Line - oś Z ────────────────────────────────────────────
+FILTER_Z_PROCESS_NOISE = 0.1
+FILTER_Z_MEASUREMENT_NOISE = 3.0
 
 # ── Regulator PD — oś X (yaw) ─────────────────────────────────────────────────
-REG_X_KP         = 0.8
+REG_X_KP         = 0.5
 REG_X_KD         = 0.3
-REG_X_MAX_OUTPUT = 50
+REG_X_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.5
@@ -35,14 +37,14 @@ REG_Y_KD         = 0.3
 REG_Y_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
-REG_Z_KP         = 1.5
-REG_Z_KD         = 0.05
-REG_Z_MAX_JUMP   = 15
-REG_Z_MAX_OUTPUT = 50
+REG_Z_KP = 1.4
+REG_Z_KD = 0.05
+REG_Z_MAX_JUMP = 200
+REG_Z_MAX_OUTPUT = 40
+MIN_HTORS_PX = 200
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
-DEADZONE_W = 20   # połowa szerokości [px] — od środka kadru w lewo i prawo
-DEADZONE_H = 20  # połowa wysokości [px]  — od środka kadru w górę i dół
+DEADZONE = 5
 
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────
 UART_PORT     = "/dev/serial0"  

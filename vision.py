@@ -1,15 +1,16 @@
 import cv2
 import mediapipe as mp
+import config
 
 class PoseDetector:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
-            model_complexity=0,
+            model_complexity=config.MP_MODEL_COMPLEXITY,
             smooth_landmarks=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_detection_confidence=config.MP_DETECTION_CONFIDENCE,
+            min_tracking_confidence=config.MP_TRACKING_CONFIDENCE
         )
         self.last_h_tors = None
 

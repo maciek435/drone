@@ -72,21 +72,6 @@ class MSPController:
             return channels
         return None
 
-    def set_yaw(self, yaw_value):
-        yaw_value = max(1000, min(2000, int(yaw_value)))
-
-        channels = [1500] * 18
-        channels[3] = yaw_value
-
-        payload = b''
-        for ch in channels:
-            payload +=ch.to_bytes(2, byteorder='little')
-        
-        with self.uart_lock:
-            request = self._build_request(self.MSP_SET_RAW_RC, payload)
-            self.ser.reset_input_buffer()
-            self.ser.write(request)
-
     def set_rc(self, yaw=1500, pitch=1500, roll=1500, throttle=1500):
         yaw = max(1000, min(2000, int(yaw)))
         pitch = max(1000, min(2000, int(pitch)))

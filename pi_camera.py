@@ -14,7 +14,7 @@ class PiVideoStream:
         self.cam = picamera2.Picamera2()
 
         cfg = self.cam.create_video_configuration(
-            main={"format": "BGR888", "size": (self.width, self.height)}
+            main={"format": "RGB888", "size": (self.width, self.height)}
         )
 
         self.cam.configure(cfg)

@@ -27,9 +27,9 @@ FILTER_Z_PROCESS_NOISE = 0.1
 FILTER_Z_MEASUREMENT_NOISE = 3.0
 
 # ── Regulator PD — oś X (yaw) ─────────────────────────────────────────────────
-REG_X_KP         = 0.5
+REG_X_KP         = 0.8
 REG_X_KD         = 0.3
-REG_X_MAX_OUTPUT = 40
+REG_X_MAX_OUTPUT = 50
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.5
@@ -37,14 +37,15 @@ REG_Y_KD         = 0.3
 REG_Y_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
-REG_Z_KP = 1.4
-REG_Z_KD = 0.05
+REG_Z_KP = 4.0
+REG_Z_KD = 0.5
 REG_Z_MAX_JUMP = 200
-REG_Z_MAX_OUTPUT = 40
-MIN_HTORS_PX = 200
+REG_Z_MAX_OUTPUT = 800
+MIN_HTORS_PX = 100
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
-DEADZONE = 5
+DEADZONE_W = 5
+DEADZONE_H = 5
 
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────
 UART_PORT     = "/dev/serial0"  

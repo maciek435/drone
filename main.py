@@ -72,13 +72,27 @@ latest_baterry = {"voltage": None}
 # battery_lock = threading.Lock()
 
 def switch_worker():
-    global follow_active
+    global follow_active, last_filtered_height
+    prev_state = False
+
     while True:
         channels = msp.get_rc_channels()
         if channels and len(channels) >= 8:
             switch_val = channels[7]
+            new_state = switch_val > 1700
+
             with follow_lock:
-                follow_active = switch_val > 1700
+                follow_active = new_state
+            
+
+            if new_state and not prev_state:
+                reg_z.set_reference(last_filtered_height)
+                tracker.reset()
+                print(f"[SWITCH] follow AKTYWNE, target_height ustawione na: {last_filtered_height}")
+            elif not new_state and prev_state:
+                tracker.reset()
+
+            prev_state = new_state
         time.sleep(0.1)
 
 def flight_worker():
@@ -88,14 +102,14 @@ def flight_worker():
         with follow_lock:
             active = follow_active
 
-        if active and target_angle_x != 0:
+        if active:
             yaw_offset = int(target_angle_x)
-            if abs(yaw_offset) < config.DEADZONE:
+            if abs(yaw_offset) < config.DEADZONE_W:
                 reg_x.reset()
                 yaw_offset = 0
 
             updown_offset = int(target_angle_y)
-            if abs(updown_offset) < config.DEADZONE:
+            if abs(updown_offset) < config.DEADZONE_H:
                 reg_y.reset()
                 updown_offset = 0
 
@@ -109,19 +123,14 @@ def flight_worker():
             throttle_pwm = 1500 + updown_offset
             pitch_pwm = 1500 + fwd_offset
 
-            # msp.set_rc(
-            #     yaw=yaw_pwm, 
-            #     pitch=pitch_pwm, 
-            #     roll=1500, 
-            #     throttle=throttle_pwm
-            # )
+            print(pitch_pwm)
             msp.set_rc(
                 yaw=yaw_pwm, 
-                pitch=1500, 
+                pitch=pitch_pwm,
                 roll=1500, 
                 throttle=1500
             )
-
+            print(pitch_pwm)
             
         else:
             reg_x.reset()
@@ -139,7 +148,7 @@ def tracking_worker():
             continue
         
         cx, cy, locked, h_est = tracker.update(frame)
-       # print(f"state={tracker.state} h_est={h_est} misses_kalman={tracker.filter_x.misses}")
+        # print(f"state={tracker.state} h_est={h_est} misses_kalman={tracker.filter_x.misses}")
         with track_lock:
             latest_track["cx"] = cx
             latest_track["cy"] = cy
@@ -149,17 +158,12 @@ def tracking_worker():
 
 def gen_frames():
     global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z
-    
+
     while True:
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
-
-        # with battery_lock:
-        #     batt = latest_baterry["voltage"]
-        # batt_str = f"{batt}V" if batt is not None else "--"
-        batt_str = "--"
 
         img = frame
         h, w, _ = img.shape
@@ -191,9 +195,7 @@ def gen_frames():
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
             target_speed_z = reg_z.update(s_hz)
-            #print(f"h_tors={h_tors} s_hz={s_hz:.1f} target_height={reg_z.target_height} "
-            #    f"error={reg_z.target_height - s_hz if reg_z.target_height else None} "
-            #    f"target_speed_z={target_speed_z:.1f}")
+            
             err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
 
             telemetry_data = {
@@ -206,25 +208,30 @@ def gen_frames():
                 "batt": "--"
             }
 
-        if pts:
-            cv2.line(img, pts[11], pts[12], (0, 255, 0), 2)
-            cv2.line(img, pts[11], pts[23], (0, 255, 0), 2)
-            cv2.line(img, pts[12], pts[24], (0, 255, 0), 2)
-            cv2.line(img, pts[23], pts[24], (0, 255, 0), 2)
+            if pts:
+                cv2.line(img, pts[11], pts[12], (0, 255, 0), 2)
+                cv2.line(img, pts[11], pts[23], (0, 255, 0), 2)
+                cv2.line(img, pts[12], pts[24], (0, 255, 0), 2)
+                cv2.line(img, pts[23], pts[24], (0, 255, 0), 2)
 
-        cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
-        
-    else:
-        target_angle_x = 0
-        target_angle_y = 0
-        target_speed_z = 0
-        reg_x.reset()
-        reg_y.reset()
+            cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
+        else:
+            target_angle_x = 0
+            target_angle_y = 0
+            target_speed_z = 0
+            reg_x.reset()
+            reg_y.reset()
+            reg_z.reset()
+            telemetry_data = {
+                "err_x": 0, "err_y": 0, "err_z": 0,
+                "ctrl_x": 0, "ctrl_y": 0, "ctrl_z": 0,
+                "batt": "--"
+            }
 
-    ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 25])
-    yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 25])
+        yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
-    time.sleep(0.033)
+        time.sleep(0.033)
 
 
 threading.Thread(target=tracking_worker, daemon=True).start()

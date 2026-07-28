@@ -50,6 +50,10 @@ class PoseDetector:
 
             bw = x2 - x1
             bh = y2 - y1
+
+            if bw < 5 or bh < 5:
+                return None
+
             bbox = (x1, y1, bw, bh)
 
             return {"cx": cx, "cy": cy, "h_tors": h_tors, "pts": pts, "bbox": bbox}        

@@ -64,6 +64,8 @@ running = True
 follow_active = False
 follow_lock = threading.Lock()  
 last_filtered_height = 0
+last_update_time = 0
+last_tracker_update_time = 0
 
 latest_track = {"cx": None, "cy": None, "locked": False}
 track_lock = threading.Lock()
@@ -95,14 +97,27 @@ def switch_worker():
             prev_state = new_state
         time.sleep(0.1)
 
+def compute_pitch_pwm(target_offset, last_pitch_pwm):
+    target_pwm = 1500 + target_offset
+
+    if last_pitch_pwm <= config.PITCH_DEADZONE_LOW and target_pwm > config.PITCH_DEADZONE_LOW:
+        return max(target_pwm, config.PITCH_DEADZONE_HIGH)
+
+    delta = target_pwm - last_pitch_pwm
+    delta = max(-config.MAX_PITCH_STEP, min(config.MAX_PITCH_STEP, delta))
+    return last_pitch_pwm + delta
+
 def flight_worker():
-    global target_angle_x, target_angle_y, target_speed_z, running, follow_active
+    global target_angle_x, target_angle_y, target_speed_z, running, follow_active, last_pitch_pwm 
 
     while running:
         with follow_lock:
             active = follow_active
 
-        if active:
+        stale = (time.time() - last_update_time) > config.MAX_DATA_AGE_S
+        stale = stale or (time.time() - last_tracker_update_time) > config.MAX_DATA_AGE_S
+        
+        if active and not stale and target_angle_x != 0:
             yaw_offset = int(target_angle_x)
             if abs(yaw_offset) < config.DEADZONE_W:
                 reg_x.reset()
@@ -119,36 +134,38 @@ def flight_worker():
             fwd_offset = int(target_speed_z)
             fwd_offset = safety_guard.clamp_forward_speed(fwd_offset, h_tors)
 
-            yaw_pwm = 1500 + yaw_offset
             throttle_pwm = 1500 + updown_offset
-            pitch_pwm = 1500 + fwd_offset
+            yaw_pwm = 1500 + yaw_offset
+            pitch_pwm = compute_pitch_pwm(fwd_offset, last_pitch_pwm)
+            last_pitch_pwm = pitch_pwm
+            
 
-            print(pitch_pwm)
-            msp.set_rc(
-                yaw=yaw_pwm, 
-                pitch=pitch_pwm,
-                roll=1500, 
-                throttle=1500
-            )
-            print(pitch_pwm)
+            msp.set_rc(yaw=yaw_pwm, pitch=pitch_pwm, roll=1500, throttle=1500)
             
         else:
             reg_x.reset()
             reg_y.reset()
             reg_z.reset()
+            last_pitch_pwm = 1500 
             msp.set_rc(yaw=1500, pitch=1500, roll=1500, throttle=1500)
        
         time.sleep(0.05)
 
 def tracking_worker():
+    global last_tracker_update_time
     while True:
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
-        
-        cx, cy, locked, h_est = tracker.update(frame)
-        # print(f"state={tracker.state} h_est={h_est} misses_kalman={tracker.filter_x.misses}")
+
+        try:
+            cx, cy, locked, h_est = tracker.update(frame)
+            last_tracker_update_time = time.time()
+        except Exception as e:
+            print(f"[TRACKING_WORKER] blad: {e}")
+            continue
+
         with track_lock:
             latest_track["cx"] = cx
             latest_track["cy"] = cy
@@ -157,13 +174,15 @@ def tracking_worker():
 
 
 def gen_frames():
-    global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z
+    global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z, last_update_time
 
     while True:
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
+        
+        last_update_time = time.time()
 
         img = frame
         h, w, _ = img.shape

@@ -70,9 +70,6 @@ last_tracker_update_time = 0
 latest_track = {"cx": None, "cy": None, "locked": False}
 track_lock = threading.Lock()
 
-latest_baterry = {"voltage": None}
-# battery_lock = threading.Lock()
-
 def switch_worker():
     global follow_active, last_filtered_height
     prev_state = False
@@ -97,18 +94,8 @@ def switch_worker():
             prev_state = new_state
         time.sleep(0.1)
 
-def compute_pitch_pwm(target_offset, last_pitch_pwm):
-    target_pwm = 1500 + target_offset
-
-    if last_pitch_pwm <= config.PITCH_DEADZONE_LOW and target_pwm > config.PITCH_DEADZONE_LOW:
-        return max(target_pwm, config.PITCH_DEADZONE_HIGH)
-
-    delta = target_pwm - last_pitch_pwm
-    delta = max(-config.MAX_PITCH_STEP, min(config.MAX_PITCH_STEP, delta))
-    return last_pitch_pwm + delta
-
 def flight_worker():
-    global target_angle_x, target_angle_y, target_speed_z, running, follow_active, last_pitch_pwm 
+    global target_angle_x, target_angle_y, target_speed_z, running, follow_active
 
     while running:
         with follow_lock:
@@ -117,7 +104,7 @@ def flight_worker():
         stale = (time.time() - last_update_time) > config.MAX_DATA_AGE_S
         stale = stale or (time.time() - last_tracker_update_time) > config.MAX_DATA_AGE_S
         
-        if active and target_angle_x != 0:
+        if active and not stale and target_angle_x != 0:
             yaw_offset = int(target_angle_x)
             if abs(yaw_offset) < config.DEADZONE_W:
                 reg_x.reset()
@@ -137,8 +124,7 @@ def flight_worker():
             throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset
             pitch_pwm = 1500 + fwd_offset
-            # pitch_pwm = compute_pitch_pwm(fwd_offset, last_pitch_pwm)
-            last_pitch_pwm = pitch_pwm
+            
             
 
             msp.set_rc(yaw=yaw_pwm, pitch=pitch_pwm, roll=1500, throttle=1500)
@@ -147,7 +133,6 @@ def flight_worker():
             reg_x.reset()
             reg_y.reset()
             reg_z.reset()
-            last_pitch_pwm = 1500 
             msp.set_rc(yaw=1500, pitch=1500, roll=1500, throttle=1500)
        
         time.sleep(0.05)

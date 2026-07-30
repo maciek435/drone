@@ -43,10 +43,6 @@ REG_Z_MAX_JUMP = 50
 REG_Z_MAX_OUTPUT = 500
 MIN_HTORS_PX = 100
 
-PITCH_DEADZONE_LOW = 1510   
-PITCH_DEADZONE_HIGH = 1700   
-MAX_PITCH_STEP = 20  
-
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
 DEADZONE_W = 5
 DEADZONE_H = 5

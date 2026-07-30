@@ -29,7 +29,7 @@ FILTER_Z_MEASUREMENT_NOISE = 3.0
 # ── Regulator PD — oś X (yaw) ─────────────────────────────────────────────────
 REG_X_KP         = 0.9
 REG_X_KD         = 0.3
-REG_X_MAX_OUTPUT = 80
+REG_X_MAX_OUTPUT = 150
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.5
@@ -38,12 +38,12 @@ REG_Y_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
 REG_Z_KP = 5.0
-REG_Z_KD = 0.5
+REG_Z_KD = 0.05
 REG_Z_MAX_JUMP = 50
-REG_Z_MAX_OUTPUT = 800
+REG_Z_MAX_OUTPUT = 500
 MIN_HTORS_PX = 100
 
-PITCH_DEADZONE_LOW = 1550   
+PITCH_DEADZONE_LOW = 1510   
 PITCH_DEADZONE_HIGH = 1700   
 MAX_PITCH_STEP = 20  
 

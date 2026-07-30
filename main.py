@@ -117,7 +117,7 @@ def flight_worker():
         stale = (time.time() - last_update_time) > config.MAX_DATA_AGE_S
         stale = stale or (time.time() - last_tracker_update_time) > config.MAX_DATA_AGE_S
         
-        if active and not stale and target_angle_x != 0:
+        if active and target_angle_x != 0:
             yaw_offset = int(target_angle_x)
             if abs(yaw_offset) < config.DEADZONE_W:
                 reg_x.reset()
@@ -136,7 +136,8 @@ def flight_worker():
 
             throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset
-            pitch_pwm = compute_pitch_pwm(fwd_offset, last_pitch_pwm)
+            pitch_pwm = 1500 + fwd_offset
+            # pitch_pwm = compute_pitch_pwm(fwd_offset, last_pitch_pwm)
             last_pitch_pwm = pitch_pwm
             
 

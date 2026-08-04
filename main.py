@@ -253,6 +253,14 @@ def video_feed(): return Response(gen_frames(), mimetype='multipart/x-mixed-repl
 @app.route('/telemetry')
 def telemetry(): return Response(json.dumps(telemetry_data), mimetype='application/json')
 
+@app.route('/toggle_record')
+def toggle_record():
+    if vs.recording:
+        vs.stop_recording()
+    else:
+        vs.start_recording()
+    return json.dumps({"status": "ok", "recording": vs.recording})
+
 if __name__ == '__main__':
     app.run(
         host=config.FLASK_HOST,

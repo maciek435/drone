@@ -51,5 +51,11 @@ DEADZONE_H = 5
 UART_PORT     = "/dev/serial0"  
 UART_BAUDRATE = 115200
 
+# ── Nagrywanie ──────────────────────────────────────────
+RECORD_WIDTH = 1920
+RECORD_HEIGHT = 1080
+RECORD_PATH = "/mnt/sdcard_video/nagranie.h264"
+RECORD_BITRATE = 10000000
+
 # ── INNE ───────────────────────
 MAX_DATA_AGE_S = 0.3 

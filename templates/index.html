@@ -56,6 +56,13 @@
             background: rgba(0, 0, 0, 0.55); padding: 6px 14px;
             border-radius: 4px; border: 1px solid #333;
         }
+        #recordBtn {
+            position: absolute; top: 20px; right: 160px;
+            padding: 10px 20px; z-index: 10;
+            background: rgba(255, 0, 0, 0.2); color: #f44;
+            border: 1px solid #f44; cursor: pointer;
+            text-transform: uppercase; font-weight: bold;
+        }
 
         /* Kolor kropki statusu detekcji */
         .dot-ok  { color: #0f0; }
@@ -66,7 +73,11 @@
 
     <img src="{{ url_for('video_feed') }}" class="video-background">
 
-    <button id="menuBtn" onclick="toggleTelemetry()">Telemetry [T]</button>
+    <div>
+        <button id="menuBtn" onclick="toggleTelemetry()">Telemetry [T]</button>
+        <button id="recordBtn" onclick="toggleRecord()">⏺ Nagrywaj</button>
+    </div>   
+
 
     <!-- Pasek zawsze widoczny — ERR_X, ERR_Y, BATT, status detekcji -->
     <div id="infoBar">
@@ -93,6 +104,14 @@
 
     <script>
         let showTelemetry = false;
+
+
+        async function toggleRecord() {
+            const res = await fetch('/toggle_record');
+            const data = await res.json();
+            const btn = document.getElementById('recordBtn');
+            btn.textContent = data.recording ? '⏹ Stop nagrywania' : '⏺ Nagrywaj';
+        }
 
         function toggleTelemetry() {
             showTelemetry = !showTelemetry;

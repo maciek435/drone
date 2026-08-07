@@ -22,7 +22,6 @@ last_extra = {"h_tors": None, "pts": None}
 
 def detect_fn(frame):
     result = detector.find_torso(frame)
-
     if result is None:
         return None
     
@@ -43,7 +42,8 @@ tracker = HybridBodyTracker(
 
 safety_guard = SafetyGuard(min_htors_px=config.MIN_HTORS_PX, max_misses=10)
 
-filter_z = KalmanLite(process_noise=config.FILTER_Z_PROCESS_NOISE, measurement_noise=config.FILTER_Z_MEASUREMENT_NOISE)
+# filter_z = KalmanLite(process_noise=config.FILTER_Z_PROCESS_NOISE, measurement_noise=config.FILTER_Z_MEASUREMENT_NOISE)
+filter_z = KalmanCV1D(q=config.FILTER_Z_PROCESS_NOISE, r=config.FILTER_Z_MEASUREMENT_NOISE)
 reg_x = Regulator(kp=config.REG_X_KP, kd=config.REG_X_KD, max_output=config.REG_X_MAX_OUTPUT) 
 reg_y = Regulator(kp=config.REG_Y_KP, kd=config.REG_Y_KD, max_output=config.REG_Y_MAX_OUTPUT) 
 reg_z = DistanceRegulator(kp=config.REG_Z_KP, max_jump=config.REG_Z_MAX_JUMP, max_output=config.REG_Z_MAX_OUTPUT)
@@ -66,9 +66,14 @@ follow_lock = threading.Lock()
 last_filtered_height = 0
 last_update_time = 0
 last_tracker_update_time = 0
+was_locked = False
 
 latest_track = {"cx": None, "cy": None, "locked": False}
 track_lock = threading.Lock()
+
+def is_plausible_height(measured, predicted, threshold):
+    return abs(measured-predicted) <= threshold
+
 
 def switch_worker():
     global follow_active, last_filtered_height
@@ -138,12 +143,19 @@ def flight_worker():
         time.sleep(0.05)
 
 def tracking_worker():
-    global last_tracker_update_time
+    global last_tracker_update_time, target_angle_x, target_angle_y, target_speed_z
+    global last_filtered_height, telemetry_data, last_update_time
+    global was_locked
+
     while True:
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
+
+        last_update_time = time.time()
+        h, w, _ = frame.shape
+        c_x, c_y = w // 2, h // 2
 
         try:
             cx, cy, locked, h_est = tracker.update(frame)
@@ -158,19 +170,59 @@ def tracking_worker():
             latest_track["locked"] = locked
             latest_track["h_est"] = h_est
 
+        h_tors = last_extra["h_tors"]
+
+        if locked:
+            s_cx, s_cy = cx, cy
+            if locked and not was_locked:
+                filter_z.init(h_tors)
+                s_hz = filter_z.x
+            else:
+                filter_z.predict()
+                pred_h = filter_z.x
+                if h_tors is not None and is_plausible_height(h_tors, pred_h, config.HEIGHT_GATE_THRESHOLD):
+                    filter_z.correct(h_tors)
+                s_hz = filter_z.x
+
+            was_locked = locked
+            last_filtered_height = s_hz
+
+            target_angle_x = reg_x.update(s_cx - c_x)
+            target_angle_y = reg_y.update(c_y - s_cy)
+            target_speed_z = reg_z.update(s_hz)
+            err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
+
+            telemetry_data = {
+                "err_x": int(c_x - s_cx),
+                "err_y": int(c_y - s_cy),
+                "err_z": int(err_z),
+                "ctrl_x": round(target_angle_x, 1),
+                "ctrl_y": round(target_angle_y, 1),
+                "ctrl_z": round(target_speed_z, 1),
+                "batt": "--"
+            }
+        else:
+            target_angle_x = 0
+            target_angle_y = 0
+            target_speed_z = 0
+            reg_x.reset()
+            reg_y.reset()
+            reg_z.reset()
+            telemetry_data = {
+                "err_x": 0, "err_y": 0, "err_z": 0,
+                "ctrl_x": 0, "ctrl_y": 0, "ctrl_z": 0,
+                "batt": "--"
+            }
+
 
 def gen_frames():
-    global telemetry_data, target_angle_x, target_angle_y, last_filtered_height, target_speed_z, last_update_time
-
     while True:
         frame = vs.read()
         if frame is None:
             time.sleep(0.01)
             continue
-        
-        last_update_time = time.time()
-
         img = frame
+
         h, w, _ = img.shape
         c_x, c_y = w // 2, h // 2
 
@@ -188,50 +240,16 @@ def gen_frames():
             cy = latest_track["cy"]
             locked = latest_track["locked"]
 
-        h_tors = last_extra["h_tors"]
         pts = last_extra["pts"]
 
         if locked:
-            s_cx = cx
-            s_cy = cy
-            s_hz = filter_z.apply(h_tors)
-            last_filtered_height = s_hz
-
-            target_angle_x = reg_x.update(s_cx - c_x)
-            target_angle_y = reg_y.update(c_y - s_cy)
-            target_speed_z = reg_z.update(s_hz)
-            
-            err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
-
-            telemetry_data = {
-                "err_x": int(c_x - s_cx),
-                "err_y": int(c_y - s_cy),
-                "err_z": int(err_z),
-                "ctrl_x": round(target_angle_x, 1),
-                "ctrl_y": round(target_angle_y, 1),
-                "ctrl_z": round(target_speed_z, 1),
-                "batt": "--"
-            }
-
             if pts:
                 cv2.line(img, pts[11], pts[12], (0, 255, 0), 2)
                 cv2.line(img, pts[11], pts[23], (0, 255, 0), 2)
                 cv2.line(img, pts[12], pts[24], (0, 255, 0), 2)
                 cv2.line(img, pts[23], pts[24], (0, 255, 0), 2)
 
-            cv2.circle(img, (int(s_cx), int(s_cy)), 5, (0, 0, 255), -1)
-        else:
-            target_angle_x = 0
-            target_angle_y = 0
-            target_speed_z = 0
-            reg_x.reset()
-            reg_y.reset()
-            reg_z.reset()
-            telemetry_data = {
-                "err_x": 0, "err_y": 0, "err_z": 0,
-                "ctrl_x": 0, "ctrl_y": 0, "ctrl_z": 0,
-                "batt": "--"
-            }
+            cv2.circle(img, (int(cx), int(cy)), 5, (0, 0, 255), -1)
 
         ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 25])
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
@@ -254,9 +272,5 @@ def video_feed(): return Response(gen_frames(), mimetype='multipart/x-mixed-repl
 def telemetry(): return Response(json.dumps(telemetry_data), mimetype='application/json')
 
 if __name__ == '__main__':
-    app.run(
-        host=config.FLASK_HOST,
-        port=config.FLASK_PORT,
-        threaded=True,
-        use_reloader=False
-    )
+    from waitress import serve
+    serve(app, host=config.FLASK_HOST, port=config.FLASK_PORT)

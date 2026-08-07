@@ -22,6 +22,8 @@ TRACKER_MAX_MISSES = 15
 TRACKER_KALMAN_Q = 0.3
 TRACKER_KALMAN_R = 1.0
 
+HEIGHT_GATE_THRESHOLD = 30 
+
 #──── Filtr Kalmana Line - oś Z ────────────────────────────────────────────
 FILTER_Z_PROCESS_NOISE = 0.1
 FILTER_Z_MEASUREMENT_NOISE = 3.0
@@ -37,7 +39,7 @@ REG_Y_KD         = 0.3
 REG_Y_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
-REG_Z_KP = 5.0
+REG_Z_KP = 5.0 
 REG_Z_KD = 0.05
 REG_Z_MAX_JUMP = 50
 REG_Z_MAX_OUTPUT = 500

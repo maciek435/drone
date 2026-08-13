@@ -47,7 +47,7 @@ MIN_HTORS_PX = 100
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
 DEADZONE_W = 5
-DEADZONE_H = 5
+DEADZONE_H = 8
 
 #───── Gimbal ───────────────────────────────────────────────────────────────────
 GIMBAL_SERVO_PIN = 12  

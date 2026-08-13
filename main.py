@@ -20,8 +20,6 @@ vs = PiVideoStream().start()
 detector = PoseDetector()
 gimbal = ServoGimbal(
     pin=config.GIMBAL_SERVO_PIN,
-    # min_angle=config.GIMBAL_MIN_ANGLE,
-    # max_angle=config.GIMBAL_MAX_ANGLE,
     reversed=True
 )
 
@@ -197,8 +195,14 @@ def tracking_worker():
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
 
+            with follow_lock:
+                active = follow_active
+
             try:
-                gimbal.set_offset(target_angle_y)
+                if active:
+                    gimbal.set_offset(target_angle_y)
+                else:
+                    gimbal.set_offset(0)
             except Exception as e:
                 print(f"[GIMBAL] blad: {e}")
 
@@ -221,6 +225,12 @@ def tracking_worker():
             reg_x.reset()
             reg_y.reset()
             reg_z.reset()
+
+            try:
+                gimbal.set_offset(0)
+            except Exception as e:
+                print(f"[GIMBAL] blad: {e}")
+                
             telemetry_data = {
                 "err_x": 0, "err_y": 0, "err_z": 0,
                 "ctrl_x": 0, "ctrl_y": 0, "ctrl_z": 0,

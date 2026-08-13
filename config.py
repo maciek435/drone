@@ -34,8 +34,8 @@ REG_X_KD         = 0.3
 REG_X_MAX_OUTPUT = 150
 
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
-REG_Y_KP         = 0.5
-REG_Y_KD         = 0.3
+REG_Y_KP         = 0.3
+REG_Y_KD         = 0.5
 REG_Y_MAX_OUTPUT = 40
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
@@ -48,6 +48,12 @@ MIN_HTORS_PX = 100
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
 DEADZONE_W = 5
 DEADZONE_H = 5
+
+#───── Gimbal ───────────────────────────────────────────────────────────────────
+GIMBAL_SERVO_PIN = 12  
+GIMBAL_CENTER_ANGLE = 90
+GIMBAL_MIN_ANGLE = 30
+GIMBAL_MAX_ANGLE = 150
 
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────
 UART_PORT     = "/dev/serial0"  

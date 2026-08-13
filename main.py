@@ -10,6 +10,7 @@ from pi_camera import PiVideoStream
 from inav_control import MSPController
 from safety import SafetyGuard
 from tracker import HybridBodyTracker
+from gimbal import ServoGimbal
 
 
 
@@ -17,6 +18,12 @@ msp = MSPController()
 app = Flask(__name__)
 vs = PiVideoStream().start()
 detector = PoseDetector()
+gimbal = ServoGimbal(
+    pin=config.GIMBAL_SERVO_PIN,
+    # min_angle=config.GIMBAL_MIN_ANGLE,
+    # max_angle=config.GIMBAL_MAX_ANGLE,
+    reversed=True
+)
 
 last_extra = {"h_tors": None, "pts": None}
 
@@ -189,6 +196,12 @@ def tracking_worker():
 
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
+
+            try:
+                gimbal.set_offset(target_angle_y)
+            except Exception as e:
+                print(f"[GIMBAL] blad: {e}")
+
             target_speed_z = reg_z.update(s_hz)
             err_z = (reg_z.target_height - s_hz) if reg_z.target_height else 0
 

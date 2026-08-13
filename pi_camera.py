@@ -30,7 +30,7 @@ class PiVideoStream:
 
     def _update(self):
         while not self.stopped:
-            self.frame = cv2.rotate(self.cam.capture_array(), cv2.ROTATE_180)
+            self.frame = self.cam.capture_array()
     
     def read(self):
         return self.frame.copy() if self.frame is not None else None

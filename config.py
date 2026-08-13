@@ -7,7 +7,7 @@ FRAME_HEIGHT = 240
 # ── Flask ─────────────────────────────────────────────────────────────────────
 FLASK_HOST = "0.0.0.0"   
 FLASK_PORT = 5000
-JPEG_QUALITY = 50         # 1-100, wyżej = lepsza jakość ale wolniejszy stream
+JPEG_QUALITY = 30        # 1-100, wyżej = lepsza jakość ale wolniejszy stream
 
 # ── MediaPipe ─────────────────────────────────────────────────────────────────
 MP_DETECTION_CONFIDENCE = 0.5

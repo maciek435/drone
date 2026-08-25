@@ -36,7 +36,7 @@ REG_X_MAX_OUTPUT = 150
 # ── Regulator PD — oś Y (góra/dół) ──────────────────────────────────
 REG_Y_KP         = 0.3
 REG_Y_KD         = 0.5
-REG_Y_MAX_OUTPUT = 40
+REG_Y_MAX_OUTPUT = 90
 
 # ── Regulator PD — oś Z (dystans) ────────────────────────────────────
 REG_Z_KP = 5.0 
@@ -47,7 +47,7 @@ MIN_HTORS_PX = 100
 
 # ── Deadzone (prostokąt na ekranie) ───────────────────────────────────────────
 DEADZONE_W = 5
-DEADZONE_H = 8
+DEADZONE_H = 2
 
 #───── Gimbal ───────────────────────────────────────────────────────────────────
 GIMBAL_SERVO_PIN = 12  

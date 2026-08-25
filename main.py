@@ -195,12 +195,17 @@ def tracking_worker():
             target_angle_x = reg_x.update(s_cx - c_x)
             target_angle_y = reg_y.update(c_y - s_cy)
 
+            gimbal_offset = target_angle_y
+            if abs(gimbal_offset) < config.DEADZONE_H:
+                gimbal_offset = 0
+                reg_y.reset()
+
             with follow_lock:
                 active = follow_active
 
             try:
                 if active:
-                    gimbal.set_offset(target_angle_y)
+                    gimbal.set_offset(gimbal_offset)
                 else:
                     gimbal.set_offset(0)
             except Exception as e:
@@ -230,7 +235,7 @@ def tracking_worker():
                 gimbal.set_offset(0)
             except Exception as e:
                 print(f"[GIMBAL] blad: {e}")
-                
+
             telemetry_data = {
                 "err_x": 0, "err_y": 0, "err_z": 0,
                 "ctrl_x": 0, "ctrl_y": 0, "ctrl_z": 0,
@@ -251,12 +256,6 @@ def gen_frames():
 
         cv2.line(img, (c_x - 10, c_y), (c_x + 10, c_y), (255, 255, 255), 1)
         cv2.line(img, (c_x, c_y - 10), (c_x, c_y + 10), (255, 255, 255), 1)
-        cv2.rectangle(
-            img,
-            (c_x - config.DEADZONE_W, c_y - config.DEADZONE_H),
-            (c_x + config.DEADZONE_W, c_y + config.DEADZONE_H),
-            (0, 165, 255), 1
-        )
 
         with track_lock:
             cx = latest_track["cx"]

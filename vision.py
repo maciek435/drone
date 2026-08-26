@@ -51,10 +51,9 @@ class PoseDetector:
             bw = x2 - x1
             bh = y2 - y1
 
-            # zakomentowane: -----------------
-            # if bw < 5 or bh < 5:
-            #     return None
-            # ----------------------------------
+            if bw < 5 or bh < 5:
+                return None
+
 
             bbox = (x1, y1, bw, bh)
 

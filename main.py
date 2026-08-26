@@ -158,6 +158,7 @@ def flight_worker():
 
             fwd_offset = int(target_speed_z)
             fwd_offset = safety_guard.clamp_forward_speed(fwd_offset, h_tors)
+            log_test_event("safety_check", f"h_tors={h_tors},raw={int(target_speed_z)},clamped={fwd_offset}")
 
             try:
                 dist_center, dist_left, dist_right = tof_array.read_all_cm()
@@ -199,21 +200,14 @@ def tracking_worker():
         h, w, _ = frame.shape
         c_x, c_y = w // 2, h // 2
         
-        # ----------------------------------------------
-        # try:
-        #     cx, cy, locked, h_est = tracker.update(frame)
-        #     last_tracker_update_time = time.time()
-        #     log_test_event("alive", f"locked={locked}")
-        # except Exception as e:
-        #     print(f"[TRACKING_WORKER] blad: {e}")
-        #     log_test_event("ERROR", str(e))
-        #     continue
+        
+        try:
+            cx, cy, locked, h_est = tracker.update(frame)
+            last_tracker_update_time = time.time()
+        except Exception as e:
+            print(f"[TRACKING_WORKER] blad: {e}")
+            continue
 
-        # zamienione na:
-        cx, cy, locked, h_est = tracker.update(frame)
-        last_tracker_update_time = time.time()
-        log_test_event("alive", f"locked={locked}")
-        # ------------------------------
 
         with track_lock:
             latest_track["cx"] = cx

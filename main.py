@@ -8,7 +8,6 @@ from regulator import KalmanLite, Regulator, DistanceRegulator, KalmanCV1D
 from vision import PoseDetector
 from pi_camera import PiVideoStream
 from inav_control import MSPController
-from safety import SafetyGuard
 from tracker import HybridBodyTracker
 from gimbal import ServoGimbal
 import board
@@ -83,6 +82,7 @@ last_filtered_height = 0
 last_update_time = 0
 last_tracker_update_time = 0
 was_locked = False
+gimbal_only_active = False
 
 latest_track = {"cx": None, "cy": None, "locked": False}
 track_lock = threading.Lock()
@@ -90,27 +90,38 @@ track_lock = threading.Lock()
 def is_plausible_height(measured, predicted, threshold):
     return abs(measured-predicted) <= threshold
 
+def get_switch_state(switch_val):
+    if switch_val > 1700:
+        return "FULL"      
+    elif switch_val > 1300:
+        return "GIMBAL_ONLY"  
+    else:
+        return "OFF"        
 
 def switch_worker():
-    global follow_active, last_filtered_height
-    prev_state = False
+    global follow_active, gimbal_only_active, last_filtered_height
+    prev_state = "OFF"
 
     while True:
         channels = msp.get_rc_channels()
         if channels and len(channels) >= 8:
             switch_val = channels[7]
-            new_state = switch_val > 1700
+            new_state = get_switch_state(switch_val)
 
             with follow_lock:
-                follow_active = new_state
-            
+                follow_active = (new_state == "FULL")
+                gimbal_only_active = (new_state in ("FULL", "GIMBAL_ONLY"))
 
-            if new_state and not prev_state:
+            if new_state == "FULL" and prev_state != "FULL":
                 reg_z.set_reference(last_filtered_height)
                 tracker.reset()
-                print(f"[SWITCH] follow AKTYWNE, target_height ustawione na: {last_filtered_height}")
-            elif not new_state and prev_state:
+                print(f"[SWITCH] FULL follow AKTYWNE")
+            elif new_state == "OFF" and prev_state != "OFF":
                 tracker.reset()
+                print(f"[SWITCH] OFF")
+            elif new_state == "GIMBAL_ONLY" and prev_state == "OFF":
+                tracker.reset()
+                print(f"[SWITCH] GIMBAL_ONLY aktywne")
 
             prev_state = new_state
         time.sleep(0.1)
@@ -131,10 +142,10 @@ def flight_worker():
                 reg_x.reset()
                 yaw_offset = 0
 
-            updown_offset = int(target_angle_y)
-            if abs(updown_offset) < config.DEADZONE_H:
-                reg_y.reset()
-                updown_offset = 0
+            # updown_offset = int(target_angle_y)
+            # if abs(updown_offset) < config.DEADZONE_H:
+            #     reg_y.reset()
+            #     updown_offset = 0
 
             with track_lock:
                 h_tors = last_extra["h_tors"]
@@ -151,7 +162,7 @@ def flight_worker():
             if tof_guard.should_block(dist_center, dist_left, dist_right):
                 fwd_offset = 0
 
-            throttle_pwm = 1500 + updown_offset
+            # throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset
             pitch_pwm = 1500 + fwd_offset
             
@@ -222,9 +233,10 @@ def tracking_worker():
 
             with follow_lock:
                 active = follow_active
+                gimbal_active = gimbal_only_active
 
             try:
-                if active:
+                if gimbal_active:
                     gimbal.set_offset(gimbal_offset)
                 else:
                     gimbal.set_offset(0)

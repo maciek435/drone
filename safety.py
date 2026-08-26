@@ -19,3 +19,19 @@ class SafetyGuard:
             else:
                 return fwd_speed
         #return fwd_speed
+
+class ToFObstacleGuard:
+    def __init__(self, stop_cm, max_misses=10):
+        self.stop_cm = stop_cm
+        self.max_misses = max_misses
+        self.misses = 0
+
+    def should_block(self, dist_center, dist_left, dist_right):
+        readings = [d for d in (dist_center, dist_left, dist_right) if d is not None]
+
+        if not readings:
+            self.misses += 1
+            return self.misses > self.max_misses
+
+        self.misses = 0
+        return any(d < self.stop_cm for d in readings)

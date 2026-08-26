@@ -55,6 +55,14 @@ GIMBAL_CENTER_ANGLE = 90
 GIMBAL_MIN_ANGLE = 30
 GIMBAL_MAX_ANGLE = 150
 
+# ─────────── Czujniki ToF (VL53L1X) ──────────────────────────
+TOF_XSHUT_PINS = [17, 27, 22]        # [srodek, lewy, prawy] - ZWERYFIKUJ okablowanie!
+TOF_I2C_ADDRESSES = [0x30, 0x32, 0x34]
+TOF_STOP_CM = 80                     # wspolny prog dla wszystkich 3 czujnikow
+TOF_MAX_MISSES = 10                  # tolerancja calkowitego braku odczytu
+TOF_DISTANCE_MODE = 2                # LONG - maksymalny zasieg
+TOF_TIMING_BUDGET_MS = 200           # dozwolone tylko: 15/20/33/50/100/200/500
+
 # ── UART — komunikacja z F405 (iNAV) ──────────────────────────────────────────
 UART_PORT     = "/dev/serial0"  
 UART_BAUDRATE = 115200

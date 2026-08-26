@@ -14,7 +14,13 @@ import board
 from tof_sensors import ToFArray
 from safety import SafetyGuard, ToFObstacleGuard
 
+# testy ------------------------------------------------------
+TEST_LOG_PATH = "/home/pi4/drone/test_crash_resilience.log"
 
+def log_test_event(event_type, extra=""):
+    with open(TEST_LOG_PATH, "a") as f:
+        f.write(f"{time.time():.3f},{event_type},{extra}\n")
+# ---------------------------------------------------------------
 
 msp = MSPController()
 app = Flask(__name__)
@@ -197,13 +203,16 @@ def tracking_worker():
         # try:
         #     cx, cy, locked, h_est = tracker.update(frame)
         #     last_tracker_update_time = time.time()
+        #     log_test_event("alive", f"locked={locked}")
         # except Exception as e:
         #     print(f"[TRACKING_WORKER] blad: {e}")
+        #     log_test_event("ERROR", str(e))
         #     continue
 
         # zamienione na:
         cx, cy, locked, h_est = tracker.update(frame)
         last_tracker_update_time = time.time()
+        log_test_event("alive", f"locked={locked}")
         # ------------------------------
 
         with track_lock:

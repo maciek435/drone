@@ -192,13 +192,19 @@ def tracking_worker():
         last_update_time = time.time()
         h, w, _ = frame.shape
         c_x, c_y = w // 2, h // 2
+        
+        # ----------------------------------------------
+        # try:
+        #     cx, cy, locked, h_est = tracker.update(frame)
+        #     last_tracker_update_time = time.time()
+        # except Exception as e:
+        #     print(f"[TRACKING_WORKER] blad: {e}")
+        #     continue
 
-        try:
-            cx, cy, locked, h_est = tracker.update(frame)
-            last_tracker_update_time = time.time()
-        except Exception as e:
-            print(f"[TRACKING_WORKER] blad: {e}")
-            continue
+        # zamienione na:
+        cx, cy, locked, h_est = tracker.update(frame)
+        last_tracker_update_time = time.time()
+        # ------------------------------
 
         with track_lock:
             latest_track["cx"] = cx

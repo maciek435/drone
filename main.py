@@ -31,7 +31,7 @@ tof_array = ToFArray(
     distance_mode=config.TOF_DISTANCE_MODE,
     timing_budget=config.TOF_TIMING_BUDGET_MS
 )
-tof_guard = ToFObstacleGuard(stop_cm=config.TOF_STOP_CM, max_misses=config.TOF_MAX_MISSES)
+tof_guard = ToFObstacleGuard(stop_cm=config.TOF_STOP_CM)
 
 last_extra = {"h_tors": None, "pts": None}
 
@@ -94,9 +94,9 @@ def get_switch_state(switch_val):
     if switch_val > 1700:
         return "FULL"      
     elif switch_val > 1300:
-        return "GIMBAL_ONLY"  
+        return "OFF" 
     else:
-        return "OFF"        
+        return "GIMBAL_ONLY"       
 
 def switch_worker():
     global follow_active, gimbal_only_active, last_filtered_height

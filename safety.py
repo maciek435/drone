@@ -29,9 +29,4 @@ class ToFObstacleGuard:
     def should_block(self, dist_center, dist_left, dist_right):
         readings = [d for d in (dist_center, dist_left, dist_right) if d is not None]
 
-        if not readings:
-            self.misses += 1
-            return self.misses > self.max_misses
-
-        self.misses = 0
         return any(d < self.stop_cm for d in readings)

@@ -100,9 +100,9 @@ def get_switch_state(switch_val):
     if switch_val > 1700:
         return "FULL"      
     elif switch_val > 1300:
-        return "GIMBAL_ONLY"  
+        return "OFF" 
     else:
-        return "OFF"        
+        return "GIMBAL_ONLY"  
 
 def switch_worker():
     global follow_active, gimbal_only_active, last_filtered_height
@@ -159,14 +159,14 @@ def flight_worker():
             fwd_offset = int(target_speed_z)
             fwd_offset = safety_guard.clamp_forward_speed(fwd_offset, h_tors)
 
-            try:
-                dist_center, dist_left, dist_right = tof_array.read_all_cm()
-            except Exception as e:
-                print(f"[TOF] blad odczytu: {e}")
-                dist_center, dist_left, dist_right = None, None, None
+            # try:
+            #     dist_center, dist_left, dist_right = tof_array.read_all_cm()
+            # except Exception as e:
+            #     print(f"[TOF] blad odczytu: {e}")
+            #     dist_center, dist_left, dist_right = None, None, None
 
-            if tof_guard.should_block(dist_center, dist_left, dist_right):
-                fwd_offset = 0
+            # if tof_guard.should_block(dist_center, dist_left, dist_right):
+            #     fwd_offset = 0
 
             # throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset

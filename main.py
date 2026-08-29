@@ -15,6 +15,11 @@ from tof_sensors import ToFArray
 from safety import SafetyGuard, ToFObstacleGuard
 
 
+TEST_LOG_PATH = "/home/pi4/drone/test_crash_resilience.log"
+
+def log_test_event(event_type, extra=""):
+    with open(TEST_LOG_PATH, "a") as f:
+        f.write(f"{time.time():.3f},{event_type},{extra}\n")
 
 msp = MSPController()
 app = Flask(__name__)
@@ -153,20 +158,20 @@ def flight_worker():
             fwd_offset = int(target_speed_z)
             fwd_offset = safety_guard.clamp_forward_speed(fwd_offset, h_tors)
 
-            try:
-                dist_center, dist_left, dist_right = tof_array.read_all_cm()
-            except Exception as e:
-                print(f"[TOF] blad odczytu: {e}")
-                dist_center, dist_left, dist_right = None, None, None
+            # try:
+            #     dist_center, dist_left, dist_right = tof_array.read_all_cm()
+            # except Exception as e:
+            #     print(f"[TOF] blad odczytu: {e}")
+            #     dist_center, dist_left, dist_right = None, None, None
 
-            if tof_guard.should_block(dist_center, dist_left, dist_right):
-                fwd_offset = 0
+            # if tof_guard.should_block(dist_center, dist_left, dist_right):
+            #     fwd_offset = 0
 
             # throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset
             pitch_pwm = 1500 + fwd_offset
             
-            
+            log_test_event("pitch_signal", f"fwd_offset={fwd_offset},pitch_pwm={pitch_pwm},tof_blocked={tof_guard.should_block(dist_center, dist_left, dist_right)}")
 
             msp.set_rc(yaw=yaw_pwm, pitch=pitch_pwm, roll=1500, throttle=1500)
             
@@ -207,6 +212,8 @@ def tracking_worker():
             latest_track["h_est"] = h_est
 
         h_tors = last_extra["h_tors"]
+
+        log_test_event("tracker_state", f"locked={locked},state={tracker.state},misses={tracker.filter_x.misses},h_tors={h_tors},h_est={h_est}")
 
         if locked:
             s_cx, s_cy = cx, cy

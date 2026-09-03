@@ -1,90 +1,136 @@
 """
-analyze_speed_test.py
+test_speed_orientation_static.py
 
-Analiza logu z Testu 10 (wplyw predkosci oddalania sie na utrate celu).
-Wypisuje wszystkie zarejestrowane wpisy 'tracker_state' w kolejnosci czasowej,
-z WYRAZNYM oznaczeniem momentow przejscia LOCKED -> LOST.
+Test 10 (wersja STATYCZNA): wplyw predkosci oddalania sie i orientacji ciala
+na utrate celu. Dziala NIEZALEZNIE od main.py - tylko kamera + tracker,
+BEZ potrzeby lotu drona (dron moze stac/lezec, kamera musi tylko widziec).
 
-Uzycie (PO zakonczeniu testu, po Ctrl+C w main.py):
-    python3 analyze_speed_test.py
+6 kombinacji (3 predkosci x 2 orientacje) x 3 powtorzenia = 18 prob,
+kazda po 15s (oddalanie sie).
+
+Uzycie:
+    python3 test_speed_orientation_static.py
 """
 
-LOG_PATH = "/home/pi4/drone/test_crash_resilience.log"
+import time
+from pi_camera import PiVideoStream
+from vision import PoseDetector
+from tracker import HybridBodyTracker
+import config
+
+TRIAL_DURATION_S = 15
+REPETITIONS = 3
+PAUSE_BETWEEN_TRIALS_S = 3
+
+COMBINATIONS = [
+    ("wolny marsz", "przodem"),
+    ("wolny marsz", "plecami"),
+    ("normalny marsz", "przodem"),
+    ("normalny marsz", "plecami"),
+    ("szybki marsz/trucht", "przodem"),
+    ("szybki marsz/trucht", "plecami"),
+]
 
 
-def parse_tracker_line(data_str):
-    result = {}
-    for part in data_str.split(","):
-        key, val = part.split("=")
-        if val == "None":
-            result[key] = None
-        elif val in ("True", "False"):
-            result[key] = (val == "True")
-        else:
-            try:
-                result[key] = float(val)
-            except ValueError:
-                result[key] = val
-    return result
+def make_detect_fn(detector):
+    last_extra = {"h_tors": None, "pts": None}
+
+    def detect_fn(frame):
+        result = detector.find_torso(frame)
+        if result is None:
+            return None
+        last_extra["h_tors"] = result["h_tors"]
+        last_extra["pts"] = result["pts"]
+        return (result["cx"], result["cy"], result["bbox"])
+
+    return detect_fn, last_extra
+
+
+def run_trial(vs, detector, trial_duration_s):
+    detect_fn, last_extra = make_detect_fn(detector)
+
+    tracker = HybridBodyTracker(
+        detect_fn,
+        detect_every_n=config.TRACKER_DETECT_EVERY_N,
+        gate_radius=config.TRACKER_GATE_RADIUS,
+        confirm_frames=config.TRACKER_CONFIRM_FRAMES,
+        max_misses=config.TRACKER_MAX_MISSES,
+        q=config.TRACKER_KALMAN_Q,
+        r=config.TRACKER_KALMAN_R,
+    )
+
+    lost_transitions = 0
+    prev_locked = True
+    total_frames = 0
+    locked_frames = 0
+
+    start_time = time.time()
+    while time.time() - start_time < trial_duration_s:
+        frame = vs.read()
+        if frame is None:
+            time.sleep(0.01)
+            continue
+
+        cx, cy, locked, h_est = tracker.update(frame)
+        total_frames += 1
+        if locked:
+            locked_frames += 1
+        if (not locked) and prev_locked:
+            lost_transitions += 1
+        prev_locked = locked
+
+    pct_locked = (100 * locked_frames / total_frames) if total_frames else 0
+    return {
+        "lost_transitions": lost_transitions,
+        "pct_locked": pct_locked,
+        "total_frames": total_frames,
+    }
 
 
 def main():
-    with open(LOG_PATH) as f:
-        lines = [l.strip().split(",", 2) for l in f if l.strip()]
+    print("=== Test 10 (STATYCZNY): predkosc/orientacja vs utrata celu ===\n")
+    print("Uruchamiam kamere...")
+    vs = PiVideoStream().start()
+    detector = PoseDetector()
+    time.sleep(2)
 
-    events = [l for l in lines if l[1] == "tracker_state"]
-    print(f"Zarejestrowano {len(events)} wpisow tracker_state\n")
+    all_results = []
 
-    if not events:
-        print("Brak danych - sprawdz czy log_test_event zostalo dodane do tracking_worker.")
-        return
+    for speed, orientation in COMBINATIONS:
+        for rep in range(1, REPETITIONS + 1):
+            input(f"\n>>> Predkosc: {speed} | Orientacja: {orientation} | "
+                  f"powtorzenie {rep}/{REPETITIONS}\n"
+                  f"    Stan BLISKO kamery (zwrocony {orientation}). "
+                  f"Nacisnij Enter, aby rozpoczac {TRIAL_DURATION_S}s proby...")
 
-    print(f"{'czas':>10} | {'locked':>7} | {'misses':>7} | {'h_tors':>8} | {'h_est':>8} | uwaga")
-    print("-" * 70)
+            print(f"Start! Oddalaj sie ({speed}, {orientation}) przez {TRIAL_DURATION_S}s...")
+            result = run_trial(vs, detector, TRIAL_DURATION_S)
+            result["speed"] = speed
+            result["orientation"] = orientation
+            all_results.append(result)
 
-    prev_locked = True
-    lost_transitions = 0
-    locked_count = 0
-    total_count = 0
+            print(f"  Wynik: utraty celu={result['lost_transitions']}, "
+                  f"% LOCKED={result['pct_locked']:.1f}%")
+            print("Wroc blisko kamery, przygotuj sie do kolejnej proby...")
+            time.sleep(PAUSE_BETWEEN_TRIALS_S)
 
-    # do wykrywania duzych przerw miedzy probami (>3s = nowa proba)
-    prev_ts = None
+    vs.stop()
 
-    for ts, _, data_str in events:
-        ts_f = float(ts)
-        data = parse_tracker_line(data_str)
-        locked = data.get("locked")
-        misses = data.get("misses")
-        h_tors = data.get("h_tors")
-        h_est = data.get("h_est")
+    print("\n\n=== PODSUMOWANIE WSZYSTKICH 18 PROB ===\n")
+    print(f"{'predkosc':>20} | {'orientacja':>8} | {'utraty':>7} | {'%LOCKED':>8}")
+    print("-" * 55)
+    for r in all_results:
+        print(f"{r['speed']:>20} | {r['orientation']:>8} | "
+              f"{r['lost_transitions']:>7} | {r['pct_locked']:>7.1f}%")
 
-        note = ""
-        if prev_ts is not None and (ts_f - prev_ts) > 3.0:
-            note += "  [NOWA PROBA - przerwa >3s]"
-
-        if locked is False and prev_locked is True:
-            note += "  <<< PRZEJSCIE LOCKED -> LOST"
-            lost_transitions += 1
-
-        if locked:
-            locked_count += 1
-        total_count += 1
-
-        h_tors_str = f"{h_tors:.1f}" if h_tors is not None else "None"
-        h_est_str = f"{h_est:.1f}" if h_est is not None else "None"
-
-        print(f"{ts_f:>10.2f} | {str(locked):>7} | {str(misses):>7} | "
-              f"{h_tors_str:>8} | {h_est_str:>8} |{note}")
-
-        prev_locked = locked
-        prev_ts = ts_f
-
-    print(f"\n=== Podsumowanie ===")
-    print(f"Calkowity czas w stanie LOCKED: {locked_count}/{total_count} "
-          f"({100*locked_count/total_count:.1f}%)")
-    print(f"Liczba przejsc LOCKED -> LOST: {lost_transitions}")
-    print("\nDopasuj powyzsze 'NOWA PROBA' i 'PRZEJSCIE LOCKED->LOST' do swoich")
-    print("recznych notatek (numer kombinacji/proby), zeby zbudowac tabele wynikow.")
+    print("\n=== SREDNIE PER KOMBINACJA (3 powtorzenia) ===\n")
+    print(f"{'predkosc':>20} | {'orientacja':>8} | {'sr.utraty':>9} | {'sr.%LOCKED':>10}")
+    print("-" * 55)
+    for speed, orientation in COMBINATIONS:
+        group = [r for r in all_results if r["speed"] == speed and r["orientation"] == orientation]
+        avg_lost = sum(r["lost_transitions"] for r in group) / len(group)
+        avg_pct = sum(r["pct_locked"] for r in group) / len(group)
+        print(f"{speed:>20} | {orientation:>8} | {avg_lost:>9.2f} | {avg_pct:>9.1f}%")
 
 
 if __name__ == "__main__":

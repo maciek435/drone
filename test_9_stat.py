@@ -111,27 +111,3 @@ def main():
 
             print(f"  Wynik: utraty celu={result['lost_transitions']}, "
                   f"% LOCKED={result['pct_locked']:.1f}%")
-            print("Wroc blisko kamery, przygotuj sie do kolejnej proby...")
-            time.sleep(PAUSE_BETWEEN_TRIALS_S)
-
-    vs.stop()
-
-    print("\n\n=== PODSUMOWANIE WSZYSTKICH 18 PROB ===\n")
-    print(f"{'predkosc':>20} | {'orientacja':>8} | {'utraty':>7} | {'%LOCKED':>8}")
-    print("-" * 55)
-    for r in all_results:
-        print(f"{r['speed']:>20} | {r['orientation']:>8} | "
-              f"{r['lost_transitions']:>7} | {r['pct_locked']:>7.1f}%")
-
-    print("\n=== SREDNIE PER KOMBINACJA (3 powtorzenia) ===\n")
-    print(f"{'predkosc':>20} | {'orientacja':>8} | {'sr.utraty':>9} | {'sr.%LOCKED':>10}")
-    print("-" * 55)
-    for speed, orientation in COMBINATIONS:
-        group = [r for r in all_results if r["speed"] == speed and r["orientation"] == orientation]
-        avg_lost = sum(r["lost_transitions"] for r in group) / len(group)
-        avg_pct = sum(r["pct_locked"] for r in group) / len(group)
-        print(f"{speed:>20} | {orientation:>8} | {avg_lost:>9.2f} | {avg_pct:>9.1f}%")
-
-
-if __name__ == "__main__":
-    main()

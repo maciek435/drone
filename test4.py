@@ -28,7 +28,7 @@ SAMPLES_PER_POSITION = 30
 SAMPLE_INTERVAL_S = 0.1
 OUTPUT_CSV = "htors_calibration_data.csv"
 
-DISTANCES_M = [1.0, 1.5, 2.0, 2.5, 3.0]
+DISTANCES_M = [1.0, 2.0, 3.0, 5.0, 7.0, 10.0]
 REPETITIONS = 3
 
 

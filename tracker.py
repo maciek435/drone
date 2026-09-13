@@ -2,7 +2,7 @@ from regulator import KalmanCV1D
 from math import sqrt
 
 class HybridBodyTracker:
-    def __init__(self, detect_fn, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15, q=0.3, r=1.0):
+    def __init__(self, detect_fn, detect_every_n=3, gate_radius=30, confirm_frames=3, max_misses=15, q=0.3, r=1.0, identity_threshold=0.5):
         self.detect_fn = detect_fn
         self.detect_every_n = detect_every_n
         self.gate_radius = gate_radius
@@ -19,6 +19,8 @@ class HybridBodyTracker:
         self.candidate_count = 0
 
         self.cv_tracker = None
+        self.reference_signature = None
+        self.identity_threshold = identity_threshold
         
     def is_same_target(self, det_x, det_y, pred_x, pred_y, gate_radius):
         if self.distance(det_x, det_y, pred_x, pred_y) <= gate_radius:
@@ -31,6 +33,35 @@ class HybridBodyTracker:
     def _make_cv_tracker(self):
         import cv2
         return cv2.legacy.TrackerMOSSE_create()
+    
+    def _extract_signature(self, frame, bbox):
+    import cv2
+    x, y, w, h = [int(v) for v in bbox]
+    x = max(0, x)
+    y = max(0, y)
+    crop = frame[y:y+h, x:x+w]
+    if crop.size == 0:
+        return None
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], None, [50, 60], [0, 180, 0, 256])
+    cv2.normalize(hist, hist)
+    return hist
+
+    def _passes_identity_check(self, frame, bbox):
+        import cv2
+        new_sig = self._extract_signature(frame, bbox)
+        if new_sig is None:
+            return False
+
+        if self.reference_signature is None:
+            self.reference_signature = new_sig
+            return True
+
+        similarity = cv2.compareHist(self.reference_signature, new_sig, cv2.HISTCMP_CORREL)
+        if similarity >= self.identity_threshold:
+            self.reference_signature = new_sig
+            return True
+        return False
 
     def _update_lost(self, det_x, det_y, det_bbox, frame):
         if det_x is None:
@@ -49,6 +80,10 @@ class HybridBodyTracker:
                 self.candidate_pos = (det_x, det_y)
             
         if self.candidate_count >= self.confirm_frames:
+            if not self._passes_identity_check(frame, det_bbox):
+                self.candidate_count = 0
+                self.candidate_pos = None
+                return False
             self.filter_x.init(det_x)
             self.filter_y.init(det_y)
             self.state = "LOCKED"
@@ -75,7 +110,7 @@ class HybridBodyTracker:
         pred_x = self.filter_x.x
         pred_y = self.filter_y.x
 
-        if det_x is not None and self.is_same_target(det_x, det_y, pred_x, pred_y, self.gate_radius):
+        if det_x is not None and self.is_same_target(det_x, det_y, pred_x, pred_y, self.gate_radius) and self._passes_identity_check(frame, det_bbox):
             self.filter_x.correct(det_x)
             self.filter_y.correct(det_y)
             self.cv_tracker = self._make_cv_tracker()
@@ -135,3 +170,4 @@ class HybridBodyTracker:
         self.candidate_pos = None
         self.candidate_count = 0
         self.cv_tracker = None
+        self.reference_signature = None

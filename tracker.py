@@ -80,10 +80,10 @@ class HybridBodyTracker:
                 self.candidate_pos = (det_x, det_y)
             
         if self.candidate_count >= self.confirm_frames:
-            # if not self._passes_identity_check(frame, det_bbox):
-            #     self.candidate_count = 0
-            #     self.candidate_pos = None
-            #     return False
+            if not self._passes_identity_check(frame, det_bbox):
+                self.candidate_count = 0
+                self.candidate_pos = None
+                return False
             self.filter_x.init(det_x)
             self.filter_y.init(det_y)
             self.state = "LOCKED"
@@ -110,7 +110,7 @@ class HybridBodyTracker:
         pred_x = self.filter_x.x
         pred_y = self.filter_y.x
 
-        if det_x is not None and self.is_same_target(det_x, det_y, pred_x, pred_y, self.gate_radius):
+        if det_x is not None and self.is_same_target(det_x, det_y, pred_x, pred_y, self.gate_radius) and self._passes_identity_check(frame, det_bbox):
             self.filter_x.correct(det_x)
             self.filter_y.correct(det_y)
             self.cv_tracker = self._make_cv_tracker()

@@ -18,7 +18,7 @@ from safety import SafetyGuard, ToFObstacleGuard
 
 
 #------------------------------ logowanie testu ---------------------------------------------
-DYNAMIC_LOG_PATH = "/home/pi4/drone/dynamic_test_log.csv"
+DYNAMIC_LOG_PATH = "/home/pi4/drone/blackbox.csv"
 dynamic_log_lock = threading.Lock()
 
 def dynamic_log_write(line):

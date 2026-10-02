@@ -200,7 +200,7 @@ def flight_worker():
             deviation = (reg_z.target_height - h_tors) if (reg_z.target_height and h_tors is not None) else None
             dynamic_log_data(locked_now, tracker.state, tracker.filter_x.misses, yaw_pwm, pitch_pwm, h_tors, deviation)
 
-            msp.set_rc(yaw=yaw_pwm, pitch=pitch_pwm, roll=1500, throttle=1500)
+            msp.set_rc(yaw=yaw_pwm, pitch=1500, roll=1500, throttle=1500)
             
         else:
             reg_x.reset()

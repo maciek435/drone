@@ -15,6 +15,32 @@ from tof_sensors import ToFArray
 from safety import SafetyGuard, ToFObstacleGuard
 
 
+#------------------------------ logowanie testu (blackbox) ---------------------------------------------
+DYNAMIC_LOG_PATH = "/home/pi4/drone/blackbox.csv"
+dynamic_log_lock = threading.Lock()
+
+def dynamic_log_write(line):
+    with dynamic_log_lock:
+        with open(DYNAMIC_LOG_PATH, "a") as f:
+            f.write(line + "\n")
+
+def dynamic_log_marker(event):
+    try:
+        dynamic_log_write(f"=== {event} === t={time.time():.3f}")
+    except Exception as e:
+        print(f"[LOG] blad zapisu znacznika: {e}")
+
+def dynamic_log_data(locked, tracker_state, misses, yaw_pwm, pitch_pwm, h_tors, deviation):
+    try:
+        h_tors_str = f"{h_tors:.1f}" if h_tors is not None else "None"
+        dev_str = f"{deviation:.1f}" if deviation is not None else "None"
+        dynamic_log_write(f"{time.time():.3f},locked={locked},tracker_state={tracker_state},"
+                           f"misses={misses},yaw_pwm={yaw_pwm},pitch_pwm={pitch_pwm},"
+                           f"h_tors={h_tors_str},odchylka={dev_str}")
+    except Exception as e:
+        print(f"[LOG] blad zapisu danych: {e}")
+#---------------------------------------------------------------------------------
+
 
 msp = MSPController()
 app = Flask(__name__)
@@ -116,12 +142,16 @@ def switch_worker():
                 reg_z.set_reference(last_filtered_height)
                 tracker.reset()
                 print(f"[SWITCH] FULL follow AKTYWNE")
+                dynamic_log_marker("SWITCH ON")
             elif new_state == "OFF" and prev_state != "OFF":
                 tracker.reset()
                 print(f"[SWITCH] OFF")
             elif new_state == "GIMBAL_ONLY" and prev_state == "OFF":
                 tracker.reset()
                 print(f"[SWITCH] GIMBAL_ONLY aktywne")
+
+            if prev_state == "FULL" and new_state != "FULL":
+                dynamic_log_marker("SWITCH OFF")
 
             prev_state = new_state
         time.sleep(0.1)
@@ -165,8 +195,12 @@ def flight_worker():
             # throttle_pwm = 1500 + updown_offset
             yaw_pwm = 1500 + yaw_offset
             pitch_pwm = 1500 + fwd_offset
-            
-            
+
+            with track_lock:
+                locked_now = latest_track["locked"]
+
+            deviation = (reg_z.target_height - h_tors) if (reg_z.target_height and h_tors is not None) else None
+            dynamic_log_data(locked_now, tracker.state, tracker.filter_x.misses, yaw_pwm, pitch_pwm, h_tors, deviation)
 
             msp.set_rc(yaw=yaw_pwm, pitch=pitch_pwm, roll=1500, throttle=1500)
             
@@ -175,6 +209,12 @@ def flight_worker():
             reg_y.reset()
             reg_z.reset()
             msp.set_rc(yaw=1500, pitch=1500, roll=1500, throttle=1500)
+
+            if active:
+                with track_lock:
+                    locked_now = latest_track["locked"]
+                    h_tors_now = last_extra["h_tors"]
+                dynamic_log_data(locked_now, tracker.state, tracker.filter_x.misses, 1500, 1500, h_tors_now, None)
        
         time.sleep(0.05)
 
